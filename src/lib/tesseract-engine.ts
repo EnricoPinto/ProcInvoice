@@ -16,48 +16,34 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 /**
  * Ensures the bundled eng.traineddata is available in /tmp/tesseract-cache.
- * On Vercel the filesystem is read-only except /tmp, so we copy the file
- * that was bundled with the deployment into /tmp before Tesseract loads it.
- * This avoids ANY network download and works 100% offline/serverless.
+ * Uses a STATICALLY-SCOPED path (process.cwd() + "tessdata") so Turbopack
+ * does NOT trace and bundle the entire project directory.
  */
 async function ensureLangData(): Promise<string> {
   const cacheDir = path.join(os.tmpdir(), "tesseract-cache");
   const cachedFile = path.join(cacheDir, "eng.traineddata");
 
-  // Already copied on a warm Lambda — skip
-  if (fs.existsSync(cachedFile)) {
+  // Already in /tmp from a previous warm Lambda invocation — skip copy
+  if (fs.existsSync(/*turbopackIgnore: true*/ cachedFile)) {
     return cacheDir;
   }
 
-  // Create the cache dir in /tmp
+  // Create the cache dir in /tmp (the only writable dir on Vercel)
   await fs.promises.mkdir(cacheDir, { recursive: true });
 
-  // The bundled tessdata folder is shipped alongside the source in the deployment
-  // Possible locations depending on Next.js output mode
-  const candidates = [
-    path.join(process.cwd(), "tessdata", "eng.traineddata"),
-    path.join(process.cwd(), ".next", "server", "tessdata", "eng.traineddata"),
-    path.join(__dirname, "..", "..", "..", "tessdata", "eng.traineddata"),
-    path.join(__dirname, "..", "..", "tessdata", "eng.traineddata"),
-  ];
+  // Statically-scoped source path — Turbopack can safely trace this
+  const sourcePath = path.join(process.cwd(), "tessdata", "eng.traineddata");
 
-  let sourcePath: string | null = null;
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      sourcePath = candidate;
-      break;
-    }
-  }
-
-  if (sourcePath) {
-    // Copy bundled file to /tmp (fast — same machine, no network)
+  if (fs.existsSync(/*turbopackIgnore: true*/ sourcePath)) {
+    // Copy the bundled file into /tmp (no network, same machine — fast)
     await fs.promises.copyFile(sourcePath, cachedFile);
-    console.log(`[Tesseract] Copied traineddata from ${sourcePath} to ${cachedFile}`);
-  } else {
-    // Fallback: download from CDN (only if bundled file not found)
-    console.warn("[Tesseract] Bundled traineddata not found, will download from CDN");
+    console.log("[Tesseract] Copied bundled traineddata to /tmp");
+    return cacheDir;
   }
 
+  // Last resort fallback: let Tesseract download from CDN
+  // (only happens if tessdata/ folder wasn't deployed correctly)
+  console.warn("[Tesseract] Bundled traineddata not found at", sourcePath, "— will download from CDN");
   return cacheDir;
 }
 
@@ -92,20 +78,23 @@ export class TesseractOCREngine implements OCREngine {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const sharp = require("sharp");
-      // Normalise to PNG for Tesseract compatibility (handles AVIF/WebP/JPEG)
+      // Normalise to PNG — handles AVIF / WebP / JPEG for Tesseract
       inputBuffer = await sharp(buffer).png().toBuffer();
     } catch (e) {
-      console.warn("Could not pre-process image with sharp, using raw buffer:", e);
+      console.warn("sharp pre-processing failed, using raw buffer:", e);
     }
 
-    // Ensure the bundled traineddata is in /tmp before starting the worker
-    // This prevents any CDN download at recognition time
+    // Ensure the bundled traineddata is available in /tmp before starting worker
     const cachePath = await ensureLangData();
 
     const worker = await createWorker("eng", 1, { cachePath });
     try {
-      // 50-second hard timeout so the job never hangs forever on Vercel
-      const ret = await withTimeout(worker.recognize(inputBuffer), 50_000, "Tesseract.recognize");
+      // Hard 50-second timeout — prevents stuck PROCESSING status on Vercel
+      const ret = await withTimeout(
+        worker.recognize(inputBuffer),
+        50_000,
+        "Tesseract.recognize"
+      );
       const rawText = ret.data.text || "";
       const blocks: OCRTextBlock[] = [];
 
@@ -136,7 +125,6 @@ export class TesseractOCREngine implements OCREngine {
 
       return { rawText, blocks, pageCount: 1 };
     } finally {
-      // Always terminate the worker to free resources
       await worker.terminate().catch(() => {});
     }
   }
@@ -155,11 +143,7 @@ export class TesseractOCREngine implements OCREngine {
         confidence: 90,
       }));
 
-      return {
-        rawText,
-        blocks,
-        pageCount: data.numpages || 1,
-      };
+      return { rawText, blocks, pageCount: data.numpages || 1 };
     } catch (err) {
       console.error("PDF parse error in TesseractOCREngine:", err);
       return { rawText: "", blocks: [], pageCount: 1 };
