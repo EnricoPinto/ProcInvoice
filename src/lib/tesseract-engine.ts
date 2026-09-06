@@ -3,6 +3,8 @@
  * PDF text extraction uses pdf-parse (works perfectly serverless).
  */
 
+import type { ExtractedInvoiceData } from "./ocr";
+
 export interface OCRTextBlock {
   text: string;
   bbox: { x0: number; y0: number; x1: number; y1: number };
@@ -14,6 +16,7 @@ export interface RawOCRResult {
   rawText: string;
   blocks: OCRTextBlock[];
   pageCount: number;
+  extractedFields?: Partial<ExtractedInvoiceData>;
 }
 
 export interface OCREngine {
@@ -25,18 +28,18 @@ export class CloudOCREngine implements OCREngine {
     if (mimeType === "application/pdf") {
       return this.recognizePdf(buffer);
     } else {
-      return this.recognizeImageWithVision(buffer);
+      return this.recognizeImageWithVision(buffer, mimeType);
     }
   }
 
   /**
-   * Uses Google Cloud Vision DOCUMENT_TEXT_DETECTION.
-   * Handles JPEG, PNG, WebP, GIF, BMP, TIFF, PDF, ICO, RAW.
-   * No binaries, no downloads — just a REST call.
+   * Uses Cloud Vision / Gemini API for instant, serverless image OCR.
+   * Handles JPEG, PNG, WebP, GIF, BMP, TIFF, etc.
+   * No binaries, no downloads — pure REST call.
    */
-  private async recognizeImageWithVision(buffer: Buffer): Promise<RawOCRResult> {
-    const { googleVisionOCR } = await import("./google-vision");
-    return googleVisionOCR(buffer);
+  private async recognizeImageWithVision(buffer: Buffer, mimeType: string): Promise<RawOCRResult> {
+    const { cloudImageOCR } = await import("./google-vision");
+    return cloudImageOCR(buffer, mimeType);
   }
 
   /**

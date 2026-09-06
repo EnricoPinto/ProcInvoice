@@ -84,6 +84,22 @@ export async function recognizeInvoice(
     // 3. Extract fields based on rules
     const extractedData = extractDataWithRules(rawResult, rules);
 
+    // 4. Fill in missing fields with AI-extracted fields if available
+    if (rawResult.extractedFields) {
+      for (const [key, val] of Object.entries(rawResult.extractedFields)) {
+        const k = key as keyof ExtractedInvoiceData;
+        const currentVal = extractedData[k];
+        if (
+          val !== undefined &&
+          val !== null &&
+          (currentVal === undefined || currentVal === null || currentVal === "" || (Array.isArray(currentVal) && currentVal.length === 0))
+        ) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (extractedData as any)[k] = val;
+        }
+      }
+    }
+
     return extractedData;
   } catch (err) {
     console.error("OCR recognition error:", err);
