@@ -110,20 +110,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Check existing user
-  const existing = await prisma.user.findUnique({
-    where: { email: data.email },
-  });
-  if (existing) {
-    return NextResponse.json(
-      { error: "An account with this email already exists." },
-      { status: 409 }
-    );
-  }
-
-  const passwordHash = await bcrypt.hash(data.password, 12);
-
   try {
+    // Check existing user
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (existing) {
+      return NextResponse.json(
+        { error: "An account with this email already exists." },
+        { status: 409 }
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
     await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Registration error:", err);
     return NextResponse.json(
-      { error: "Registration failed. Please try again." },
+      { error: (err as Error)?.message || "Registration failed. Please try again." },
       { status: 500 }
     );
   }

@@ -9,14 +9,15 @@ export const CURRENT_KEY_VERSION = process.env.KEY_VERSION || "v1";
  */
 function getKeyForVersion(version: string = CURRENT_KEY_VERSION): Buffer {
   const envVarName = `FIELD_ENCRYPTION_KEY_${version.toUpperCase()}`;
-  const keyHex = process.env[envVarName] || process.env.FIELD_ENCRYPTION_KEY || "";
+  const rawKey = process.env[envVarName] || process.env.FIELD_ENCRYPTION_KEY || "";
+  const keyHex = rawKey.replace(/^["']|["']$/g, "").trim();
 
   if (!keyHex || keyHex.length !== 64) {
     if (process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
       // Deterministic dev fallback key
       return Buffer.from("0".repeat(64), "hex");
     }
-    throw new Error(`Encryption key for version '${version}' must be a 32-byte (64 hex char) string`);
+    throw new Error(`Encryption key for version '${version}' must be a 32-byte (64 hex char) string (found ${keyHex.length} characters)`);
   }
   return Buffer.from(keyHex, "hex");
 }

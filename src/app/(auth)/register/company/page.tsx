@@ -70,14 +70,19 @@ export default function CompanyRegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, accountType: "COMPANY" }),
       });
-      const json = await res.json();
+      let json: { error?: string } = {};
+      try {
+        json = await res.json();
+      } catch {
+        // empty response
+      }
       if (!res.ok) {
-        setServerError(json.error || "Registration failed. Please try again.");
+        setServerError(json.error || `Server error (${res.status}). Please check database & environment settings.`);
       } else {
         router.push("/login?registered=1");
       }
-    } catch {
-      setServerError("Network error. Please check your connection.");
+    } catch (fetchErr) {
+      setServerError((fetchErr as Error)?.message || "Network error. Please check your connection.");
     } finally {
       setLoading(false);
     }
