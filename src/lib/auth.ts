@@ -9,6 +9,16 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// On Vercel, ensure any leftover localhost URLs from .env do not break production redirects
+if (process.env.VERCEL) {
+  if (process.env.NEXTAUTH_URL && process.env.NEXTAUTH_URL.includes("localhost")) {
+    delete process.env.NEXTAUTH_URL;
+  }
+  if (process.env.AUTH_URL && process.env.AUTH_URL.includes("localhost")) {
+    delete process.env.AUTH_URL;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   session: { strategy: "jwt" },
