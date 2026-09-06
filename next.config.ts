@@ -1,13 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdf-parse", "@prisma/client", "tesseract.js", "sharp"],
-
-  // Tell Vercel's file-tracing to include the tessdata folder
-  // alongside the /api/upload serverless function bundle
-  outputFileTracingIncludes: {
-    "/api/upload": ["./tessdata/**"],
-  },
+  serverExternalPackages: ["pdf-parse", "@prisma/client", "sharp"],
 
   async headers() {
     return [

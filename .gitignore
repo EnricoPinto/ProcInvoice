@@ -34,11 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
-# local uploads & OCR models — but tessdata/ IS committed (needed for Vercel)
+# local uploads & OCR models
 /uploads/
+/tessdata/
 *.traineddata
-!tessdata/
-!tessdata/*.traineddata
 
 # vercel
 .vercel

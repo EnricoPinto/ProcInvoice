@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { TesseractOCREngine, type OCREngine, type RawOCRResult } from "./tesseract-engine";
+import { CloudOCREngine, type OCREngine, type RawOCRResult } from "./tesseract-engine";
 import { extractDataWithRules, DEFAULT_KEYWORD_RULES, type KeywordRuleInput } from "./keyword-extractor";
 
 export interface ExtractedInvoiceData {
@@ -32,8 +32,8 @@ export interface OCRResult {
   extractedData: ExtractedInvoiceData;
 }
 
-// Pluggable active engine instance — defaults to Tesseract OCR
-let activeEngine: OCREngine = new TesseractOCREngine();
+// Pluggable active engine instance — uses Google Cloud Vision API
+let activeEngine: OCREngine = new CloudOCREngine();
 
 export function setOCREngine(engine: OCREngine) {
   activeEngine = engine;
