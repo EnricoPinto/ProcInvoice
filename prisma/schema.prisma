@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountType {
+  COMPANY
+  INDIVIDUAL
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum InvoiceStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  passwordHash  String
+  accountType   AccountType
+  role          Role        @default(USER)
+  country       String      @default("NL")
+  emailVerified DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  company    CompanyProfile?
+  individual IndividualProfile?
+  invoices   Invoice[]
+  settings   UserSettings?
+  auditLogs  AuditLog[]
+
+  @@map("users")
+}
+
+model CompanyProfile {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String
+  coc                String  // KVK number
+  businessType       String
+  vatNumber          String  // encrypted at rest with key versioning
+  iban               String  // encrypted at rest with key versioning
+  address            String  // encrypted at rest with key versioning
+  companyEmail       String  // encrypted at rest with key versioning
+  contactName        String  // encrypted at rest with key versioning
+  contactDesignation String  // encrypted at rest with key versioning
+  termsAccepted      Boolean @default(true)
+  privacyAccepted    Boolean @default(true)
+  disclaimerAccepted Boolean @default(true)
+
+  @@map("company_profiles")
+}
+
+model IndividualProfile {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName           String
+  address            String  // encrypted at rest with key versioning
+  iban               String? // encrypted at rest with key versioning, optional
+  termsAccepted      Boolean @default(true)
+  privacyAccepted    Boolean @default(true)
+  disclaimerAccepted Boolean @default(true)
+
+  @@map("individual_profiles")
+}
+
+model Invoice {
+  id                 String        @id @default(cuid())
+  userId             String
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName           String
+  fileUrl            String
+  fileSize           Int
+  mimeType           String
+  pageCount          Int           @default(1)
+  status             InvoiceStatus @default(PENDING)
+  extractedData      Json?         // Stores encrypted string wrapper or JSON
+  notes              String?
+  retentionYears     Int           @default(7)
+  isRetentionFlagged Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@map("invoices")
+}
+
+model KeywordRule {
+  id           String   @id @default(cuid())
+  fieldName    String   // e.g. "invoiceNumber", "vatNumber", "totalAmount"
+  keywords     String   // JSON array of strings e.g. '["Invoice No", "Factuurnummer"]'
+  matchType    String   @default("EXACT") // "EXACT" | "FUZZY" | "REGEX"
+  regexPattern String?
+  enabled      Boolean  @default(true)
+  priority     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("keyword_rules")
+}
+
+model UserSettings {
+  id                   String  @id @default(cuid())
+  userId               String  @unique
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skipMultiPageWarning Boolean @default(false)
+  retentionYears       Int     @default(7)
+
+  @@map("user_settings")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  resource  String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
