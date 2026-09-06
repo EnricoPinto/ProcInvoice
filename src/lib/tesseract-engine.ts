@@ -1,6 +1,65 @@
 import { createWorker } from "tesseract.js";
 import path from "path";
 import os from "os";
+import fs from "fs";
+
+// Timeout wrapper: rejects if OCR takes longer than ms
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
+/**
+ * Ensures the bundled eng.traineddata is available in /tmp/tesseract-cache.
+ * On Vercel the filesystem is read-only except /tmp, so we copy the file
+ * that was bundled with the deployment into /tmp before Tesseract loads it.
+ * This avoids ANY network download and works 100% offline/serverless.
+ */
+async function ensureLangData(): Promise<string> {
+  const cacheDir = path.join(os.tmpdir(), "tesseract-cache");
+  const cachedFile = path.join(cacheDir, "eng.traineddata");
+
+  // Already copied on a warm Lambda — skip
+  if (fs.existsSync(cachedFile)) {
+    return cacheDir;
+  }
+
+  // Create the cache dir in /tmp
+  await fs.promises.mkdir(cacheDir, { recursive: true });
+
+  // The bundled tessdata folder is shipped alongside the source in the deployment
+  // Possible locations depending on Next.js output mode
+  const candidates = [
+    path.join(process.cwd(), "tessdata", "eng.traineddata"),
+    path.join(process.cwd(), ".next", "server", "tessdata", "eng.traineddata"),
+    path.join(__dirname, "..", "..", "..", "tessdata", "eng.traineddata"),
+    path.join(__dirname, "..", "..", "tessdata", "eng.traineddata"),
+  ];
+
+  let sourcePath: string | null = null;
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      sourcePath = candidate;
+      break;
+    }
+  }
+
+  if (sourcePath) {
+    // Copy bundled file to /tmp (fast — same machine, no network)
+    await fs.promises.copyFile(sourcePath, cachedFile);
+    console.log(`[Tesseract] Copied traineddata from ${sourcePath} to ${cachedFile}`);
+  } else {
+    // Fallback: download from CDN (only if bundled file not found)
+    console.warn("[Tesseract] Bundled traineddata not found, will download from CDN");
+  }
+
+  return cacheDir;
+}
 
 export interface OCRTextBlock {
   text: string;
@@ -33,15 +92,20 @@ export class TesseractOCREngine implements OCREngine {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const sharp = require("sharp");
+      // Normalise to PNG for Tesseract compatibility (handles AVIF/WebP/JPEG)
       inputBuffer = await sharp(buffer).png().toBuffer();
     } catch (e) {
       console.warn("Could not pre-process image with sharp, using raw buffer:", e);
     }
 
-    const cachePath = path.join(os.tmpdir(), "tesseract-cache");
+    // Ensure the bundled traineddata is in /tmp before starting the worker
+    // This prevents any CDN download at recognition time
+    const cachePath = await ensureLangData();
+
     const worker = await createWorker("eng", 1, { cachePath });
     try {
-      const ret = await worker.recognize(inputBuffer);
+      // 50-second hard timeout so the job never hangs forever on Vercel
+      const ret = await withTimeout(worker.recognize(inputBuffer), 50_000, "Tesseract.recognize");
       const rawText = ret.data.text || "";
       const blocks: OCRTextBlock[] = [];
 
@@ -70,13 +134,10 @@ export class TesseractOCREngine implements OCREngine {
         }
       }
 
-      return {
-        rawText,
-        blocks,
-        pageCount: 1,
-      };
+      return { rawText, blocks, pageCount: 1 };
     } finally {
-      await worker.terminate();
+      // Always terminate the worker to free resources
+      await worker.terminate().catch(() => {});
     }
   }
 
