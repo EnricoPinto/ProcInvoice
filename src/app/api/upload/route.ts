@@ -8,6 +8,8 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const authed = await requireAuth(req);
   if (!authed) {
@@ -133,8 +135,12 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Run OCR
-  runOCR(invoice.id, buffer, file.type, authed.userId, req.headers.get("x-forwarded-for") || "unknown").catch(console.error);
+  // Run OCR synchronously before returning response
+  try {
+    await runOCR(invoice.id, buffer, file.type, authed.userId, req.headers.get("x-forwarded-for") || "unknown");
+  } catch (ocrErr) {
+    console.error("OCR execution error:", ocrErr);
+  }
 
   return NextResponse.json({ success: true, invoiceId: invoice.id }, { status: 201 });
 }

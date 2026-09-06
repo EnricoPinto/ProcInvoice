@@ -1,4 +1,6 @@
 import { createWorker } from "tesseract.js";
+import path from "path";
+import os from "os";
 
 export interface OCRTextBlock {
   text: string;
@@ -36,7 +38,8 @@ export class TesseractOCREngine implements OCREngine {
       console.warn("Could not pre-process image with sharp, using raw buffer:", e);
     }
 
-    const worker = await createWorker("eng");
+    const cachePath = path.join(os.tmpdir(), "tesseract-cache");
+    const worker = await createWorker("eng", 1, { cachePath });
     try {
       const ret = await worker.recognize(inputBuffer);
       const rawText = ret.data.text || "";
