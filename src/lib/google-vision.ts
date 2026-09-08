@@ -133,7 +133,7 @@ Output a strictly valid JSON object with the following schema (do not wrap in ma
       }
 
       // Parse structured JSON response
-      let parsed: any;
+      let parsed: Record<string, unknown>;
       try {
         parsed = JSON.parse(contentText);
       } catch {
@@ -142,7 +142,7 @@ Output a strictly valid JSON object with the following schema (do not wrap in ma
         parsed = JSON.parse(cleaned);
       }
 
-      const rawText: string = parsed.rawText || contentText;
+      const rawText: string = (parsed.rawText as string) || contentText;
       const lines = rawText.split("\n").map((l: string) => l.trim()).filter(Boolean);
       const blocks: OCRTextBlock[] = lines.map((line: string, idx: number) => ({
         text: line,
@@ -152,22 +152,22 @@ Output a strictly valid JSON object with the following schema (do not wrap in ma
       }));
 
       const extractedFields: Partial<ExtractedInvoiceData> = {
-        invoiceNumber: parsed.invoiceNumber || undefined,
-        invoiceDate: parsed.invoiceDate || undefined,
-        dueDate: parsed.dueDate || undefined,
-        vendorName: parsed.vendorName || undefined,
-        vendorAddress: parsed.vendorAddress || undefined,
-        vendorVAT: parsed.vendorVAT || undefined,
-        clientName: parsed.clientName || undefined,
-        clientAddress: parsed.clientAddress || undefined,
+        invoiceNumber: (parsed.invoiceNumber as string) || undefined,
+        invoiceDate: (parsed.invoiceDate as string) || undefined,
+        dueDate: (parsed.dueDate as string) || undefined,
+        vendorName: (parsed.vendorName as string) || undefined,
+        vendorAddress: (parsed.vendorAddress as string) || undefined,
+        vendorVAT: (parsed.vendorVAT as string) || undefined,
+        clientName: (parsed.clientName as string) || undefined,
+        clientAddress: (parsed.clientAddress as string) || undefined,
         subtotal: typeof parsed.subtotal === "number" ? parsed.subtotal : undefined,
         taxRate: typeof parsed.taxRate === "number" ? parsed.taxRate : undefined,
         taxAmount: typeof parsed.taxAmount === "number" ? parsed.taxAmount : undefined,
         totalAmount: typeof parsed.totalAmount === "number" ? parsed.totalAmount : undefined,
-        currency: parsed.currency || undefined,
-        paymentTerms: parsed.paymentTerms || undefined,
-        bankDetails: parsed.bankDetails || undefined,
-        notes: parsed.notes || undefined,
+        currency: (parsed.currency as string) || undefined,
+        paymentTerms: (parsed.paymentTerms as string) || undefined,
+        bankDetails: (parsed.bankDetails as string) || undefined,
+        notes: (parsed.notes as string) || undefined,
         lineItems: Array.isArray(parsed.lineItems) ? parsed.lineItems : undefined,
       };
 
@@ -177,13 +177,14 @@ Output a strictly valid JSON object with the following schema (do not wrap in ma
         pageCount: 1,
         extractedFields,
       };
-    } catch (err: any) {
-      lastError = err;
+    } catch (err: unknown) {
+      const errorObj = err instanceof Error ? err : new Error(String(err));
+      lastError = errorObj;
       // Continue to next model if model not found
-      if (err.message?.includes("404") || err.message?.includes("not found")) {
+      if (errorObj.message.includes("404") || errorObj.message.includes("not found")) {
         continue;
       }
-      throw err;
+      throw errorObj;
     }
   }
 

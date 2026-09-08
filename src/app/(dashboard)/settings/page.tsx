@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Shield, RotateCcw, CheckCircle2, AlertCircle, Download, Trash2, Database } from "lucide-react";
+import { Settings, Shield, CheckCircle2, AlertCircle, Download, Trash2, Database } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 interface UserSettings {
@@ -51,6 +51,7 @@ export default function SettingsPage() {
   };
 
   const handleDownloadData = () => {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/api/user/export";
   };
 

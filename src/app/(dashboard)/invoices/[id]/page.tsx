@@ -5,12 +5,6 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   FileText,
-  Calendar,
-  Building2,
-  Hash,
-  DollarSign,
-  Percent,
-  CreditCard,
   CheckCircle2,
   Clock,
   XCircle,
@@ -78,7 +72,7 @@ export default async function InvoiceDetailPage({
             </div>
           </div>
           <a
-            href={invoice.fileUrl}
+            href={`/api/invoices/${invoice.id}/download`}
             download
             className="btn btn-secondary"
           >

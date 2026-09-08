@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/api-utils";
+import { requireAdmin } from "@/lib/api-utils";
 import { ensureDefaultKeywordRules } from "@/lib/seed-keywords";
 
 export async function GET(req: NextRequest) {
-  const authed = await requireAuth(req);
-  if (!authed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authed = await requireAdmin(req);
+  if (!authed) return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
 
   await ensureDefaultKeywordRules();
 
@@ -17,8 +17,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authed = await requireAuth(req);
-  if (!authed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authed = await requireAdmin(req);
+  if (!authed) return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
 
   let body: {
     fieldName: string;

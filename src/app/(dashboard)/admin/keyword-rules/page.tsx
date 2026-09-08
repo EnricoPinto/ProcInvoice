@@ -34,10 +34,6 @@ export default function KeywordRulesPage() {
   const [testText, setTestText] = useState("");
   const [testResult, setTestResult] = useState<Record<string, string> | null>(null);
 
-  useEffect(() => {
-    fetchRules();
-  }, []);
-
   const fetchRules = async () => {
     setLoading(true);
     try {
@@ -50,6 +46,24 @@ export default function KeywordRulesPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let ignore = false;
+    fetch("/api/admin/keyword-rules")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!ignore && data.rules) setRules(data.rules);
+      })
+      .catch(() => {
+        if (!ignore) setError("Failed to load keyword rules");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleOpenNew = () => {
     setEditingId(null);

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/api-utils";
+import { requireAdmin } from "@/lib/api-utils";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authed = await requireAuth(req);
-  if (!authed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authed = await requireAdmin(req);
+  if (!authed) return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
 
   const { id } = await params;
   let body: {
@@ -62,8 +62,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authed = await requireAuth(req);
-  if (!authed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authed = await requireAdmin(req);
+  if (!authed) return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
 
   const { id } = await params;
 

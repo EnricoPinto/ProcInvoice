@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/api-utils";
+import { requireAdmin } from "@/lib/api-utils";
 import { CURRENT_KEY_VERSION } from "@/lib/encryption";
 
 export async function GET(req: NextRequest) {
-  const authed = await requireAuth(req);
-  if (!authed) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authed = await requireAdmin(req);
+  if (!authed) return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
 
   // Query audit logs with search params
   const url = new URL(req.url);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ShieldCheck, Server, Key, Users, History, FileText, Search, Download, Clock } from "lucide-react";
+import { ShieldCheck, Server, Key, Users, History, Search, Download } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 interface UserRecord {
@@ -40,10 +40,6 @@ export default function SecurityAdminPage() {
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, [actionFilter]);
-
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -62,6 +58,33 @@ export default function SecurityAdminPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let ignore = false;
+    const q = new URLSearchParams();
+    if (actionFilter) q.set("action", actionFilter);
+    if (search) q.set("search", search);
+
+    fetch(`/api/admin/security?${q.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!ignore) {
+          if (data.securityMetrics) setMetrics(data.securityMetrics);
+          if (data.users) setUsers(data.users);
+          if (data.auditLogs) setLogs(data.auditLogs);
+        }
+      })
+      .catch(() => {
+        if (!ignore) console.error("Failed to load security dashboard data");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [actionFilter, search]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

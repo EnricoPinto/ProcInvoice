@@ -50,7 +50,7 @@ export function encrypt(value: string | null | undefined, version: string = CURR
  * Also supports unversioned legacy format "iv_b64:authTag_b64:encrypted_b64"
  */
 export function decrypt(value: unknown): string {
-  if (!value || typeof value !== "string") return typeof value === "object" ? JSON.stringify(value) : "";
+  if (!value || typeof value !== "string") return (value && typeof value === "object") ? JSON.stringify(value) : "";
   try {
     const parts = value.split(":");
     let version = CURRENT_KEY_VERSION;

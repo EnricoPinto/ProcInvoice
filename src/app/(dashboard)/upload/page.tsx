@@ -47,7 +47,7 @@ export default function UploadPage() {
     return null;
   };
 
-  const handleFileSelect = (f: File) => {
+  const handleFileSelect = useCallback((f: File) => {
     const err = validateFile(f);
     if (err) {
       setError(err);
@@ -55,14 +55,14 @@ export default function UploadPage() {
     }
     setError("");
     setFile(f);
-  };
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
     const f = e.dataTransfer.files[0];
     if (f) handleFileSelect(f);
-  }, []);
+  }, [handleFileSelect]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

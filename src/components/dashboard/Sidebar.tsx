@@ -20,6 +20,7 @@ interface SidebarProps {
     email?: string | null;
     name?: string | null;
     accountType?: string | null;
+    role?: string | null;
   };
 }
 
@@ -60,17 +61,21 @@ export function Sidebar({ user }: SidebarProps) {
           </Link>
         ))}
 
-        <p className="nav-section-label" style={{ marginTop: "1.5rem" }}>Admin Controls</p>
-        {adminItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`nav-link${pathname === href || pathname.startsWith(href) ? " active" : ""}`}
-          >
-            <Icon size={18} />
-            {label}
-          </Link>
-        ))}
+        {user.role === "ADMIN" && (
+          <>
+            <p className="nav-section-label" style={{ marginTop: "1.5rem" }}>Admin Controls</p>
+            {adminItems.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`nav-link${pathname === href || pathname.startsWith(href) ? " active" : ""}`}
+              >
+                <Icon size={18} />
+                {label}
+              </Link>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* User & Sign out */}

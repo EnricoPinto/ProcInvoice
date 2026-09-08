@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { FileText, Upload, ArrowRight, CheckCircle2, Clock, XCircle, Search } from "lucide-react";
+import { FileText, Upload, ArrowRight, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { formatDate, formatFileSize } from "@/lib/utils";
 
 export default async function InvoicesPage() {

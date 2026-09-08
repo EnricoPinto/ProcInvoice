@@ -98,7 +98,7 @@ export function EditableResults({ invoiceId, initialData }: EditableResultsProps
     );
   };
 
-  const Section = ({ title, fields }: { title: string; fields: Field[] }) => (
+  const renderSection = (title: string, fields: Field[]) => (
     <div className="glass-card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
       <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "1.25rem" }}>
         {title}
@@ -140,10 +140,10 @@ export function EditableResults({ invoiceId, initialData }: EditableResultsProps
         </div>
       </div>
 
-      <Section title="Invoice Details" fields={MAIN_FIELDS} />
-      <Section title="Vendor" fields={VENDOR_FIELDS} />
-      <Section title="Client" fields={CLIENT_FIELDS} />
-      <Section title="Amounts" fields={AMOUNT_FIELDS} />
+      {renderSection("Invoice Details", MAIN_FIELDS)}
+      {renderSection("Vendor", VENDOR_FIELDS)}
+      {renderSection("Client", CLIENT_FIELDS)}
+      {renderSection("Amounts", AMOUNT_FIELDS)}
 
       {/* Line Items */}
       {data.lineItems && data.lineItems.length > 0 && (
