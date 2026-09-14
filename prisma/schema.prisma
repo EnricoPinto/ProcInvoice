@@ -98,7 +98,19 @@ model Invoice {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
+  fileRecord         InvoiceFile?
+
   @@map("invoices")
+}
+
+model InvoiceFile {
+  id        String   @id @default(cuid())
+  invoiceId String   @unique
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  data      Bytes    // binary file content
+  createdAt DateTime @default(now())
+
+  @@map("invoice_files")
 }
 
 model KeywordRule {

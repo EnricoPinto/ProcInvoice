@@ -408,8 +408,36 @@ select.form-input option { background: #1e293b; color: var(--text-primary); }
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  max-width: 100%;
 }
+.invoice-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 380px;
+}
+.invoice-items-table th {
+  padding: 0.6rem 0.6rem;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
+}
+.invoice-items-table td {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.invoice-items-table tr:last-child td { border-bottom: none; }
+.invoice-items-table tr:hover td { background: rgba(255,255,255,0.02); color: var(--text-primary); }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th {
   padding: 1rem 1.25rem;
@@ -562,17 +590,20 @@ select.form-input option { background: #1e293b; color: var(--text-primary); }
 /* ─── Review Screen Split View (Desktop Side-by-Side, Mobile Stacked) ─── */
 .invoice-split-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 42%) minmax(0, 58%);
+  gap: 1.25rem;
   align-items: start;
+  width: 100%;
+  max-width: 100%;
 }
 .invoice-pdf-pane {
   position: sticky;
   top: 1rem;
   height: calc(100vh - 6rem);
-  min-height: 600px;
+  min-height: 550px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .invoice-pdf-frame {
   width: 100%;
@@ -581,13 +612,19 @@ select.form-input option { background: #1e293b; color: var(--text-primary); }
   border-radius: var(--radius-lg);
   background: rgba(0, 0, 0, 0.25);
 }
-@media (max-width: 1024px) {
+@media (min-width: 1600px) {
+  .invoice-split-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 1.5rem;
+  }
+}
+@media (max-width: 1100px) {
   .invoice-split-layout {
     grid-template-columns: 1fr;
   }
   .invoice-pdf-pane {
     position: static;
-    height: 450px;
+    height: 480px;
     min-height: 360px;
     margin-bottom: 1.5rem;
   }

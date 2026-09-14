@@ -15,6 +15,7 @@ import {
 import { formatDate, formatFileSize } from "@/lib/utils";
 import type { ExtractedInvoiceData } from "@/lib/ocr";
 import { EditableResults } from "@/components/invoice/EditableResults";
+import { DocumentViewer } from "@/components/invoice/DocumentViewer";
 import { decryptJson } from "@/lib/encryption";
 
 export default async function InvoiceDetailPage({
@@ -152,76 +153,11 @@ export default async function InvoiceDetailPage({
       {data && invoice.status === "PROCESSED" && (
         <div className="invoice-split-layout">
           {/* LEFT / TOP: Document Viewer (PDF or Image) */}
-          <div className="invoice-pdf-pane glass-card" style={{ padding: "0.75rem" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "0.4rem 0.6rem 0.6rem",
-                borderBottom: "1px solid var(--border)",
-                marginBottom: "0.5rem",
-              }}
-            >
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: "0.8125rem",
-                  fontWeight: 700,
-                  color: "var(--text-secondary)",
-                }}
-              >
-                <Eye size={15} style={{ color: "var(--secondary)" }} />
-                Source Document
-              </span>
-              <a
-                href={filePreviewUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--secondary)",
-                  textDecoration: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontWeight: 600,
-                }}
-              >
-                Full Screen <ExternalLink size={12} />
-              </a>
-            </div>
-
-            {invoice.mimeType === "application/pdf" ? (
-              <iframe
-                src={`${filePreviewUrl}#toolbar=1&navpanes=0`}
-                title="Invoice PDF"
-                className="invoice-pdf-frame"
-              />
-            ) : (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "auto",
-                  background: "rgba(0,0,0,0.3)",
-                  borderRadius: "var(--radius-lg)",
-                  padding: "1rem",
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={filePreviewUrl}
-                  alt={invoice.fileName}
-                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }}
-                />
-              </div>
-            )}
-          </div>
+          <DocumentViewer
+            fileUrl={filePreviewUrl}
+            fileName={invoice.fileName}
+            mimeType={invoice.mimeType}
+          />
 
           {/* RIGHT / BELOW: Extracted & Editable Form */}
           <div style={{ minWidth: 0 }}>

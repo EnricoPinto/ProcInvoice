@@ -234,7 +234,7 @@ export function EditableResults({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
           gap: "1rem",
         }}
       >
@@ -439,40 +439,40 @@ export function EditableResults({
             {t.noLineItems}
           </div>
         ) : (
-          <div className="table-container" style={{ margin: 0 }}>
-            <table className="data-table" style={{ fontSize: "0.875rem" }}>
+          <div className="table-container" style={{ margin: 0, overflowX: "auto" }}>
+            <table className="invoice-items-table" style={{ fontSize: "0.8125rem", width: "100%" }}>
               <thead>
                 <tr>
-                  <th>{t.description}</th>
-                  <th style={{ width: 80 }}>{t.quantity}</th>
-                  <th style={{ width: 110 }}>{t.unitPrice}</th>
-                  <th style={{ width: 110 }}>{t.total}</th>
-                  {editing && <th style={{ width: 50 }}></th>}
+                  <th style={{ minWidth: 120 }}>{t.description}</th>
+                  <th style={{ width: 55, textAlign: "center" }}>{t.quantity}</th>
+                  <th style={{ width: 90, textAlign: "right" }}>{t.unitPrice}</th>
+                  <th style={{ width: 90, textAlign: "right" }}>{t.total}</th>
+                  {editing && <th style={{ width: 36, textAlign: "center" }}></th>}
                 </tr>
               </thead>
               <tbody>
                 {((editing ? draft : data).lineItems || []).map((item, i) => (
                   <tr key={i}>
-                    <td>
+                    <td style={{ minWidth: 120 }}>
                       {editing ? (
                         <input
                           className="form-input"
-                          style={{ padding: "4px 8px", fontSize: "0.8125rem" }}
+                          style={{ padding: "4px 6px", fontSize: "0.8125rem", width: "100%", boxConfig: "border-box" } as React.CSSProperties}
                           value={item.description || ""}
                           onChange={(e) => updateLineItem(i, "description", e.target.value)}
                         />
                       ) : (
-                        <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                        <span style={{ color: "var(--text-primary)", fontWeight: 500, wordBreak: "break-word" }}>
                           {item.description}
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td style={{ textAlign: "center", width: 55 }}>
                       {editing ? (
                         <input
                           className="form-input"
                           type="number"
-                          style={{ padding: "4px 8px", fontSize: "0.8125rem" }}
+                          style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 50, textAlign: "center" }}
                           value={item.quantity ?? ""}
                           onChange={(e) => updateLineItem(i, "quantity", e.target.value)}
                         />
@@ -480,36 +480,36 @@ export function EditableResults({
                         <span>{item.quantity ?? "—"}</span>
                       )}
                     </td>
-                    <td>
+                    <td style={{ textAlign: "right", width: 90 }}>
                       {editing ? (
                         <input
                           className="form-input"
                           type="number"
                           step="0.01"
-                          style={{ padding: "4px 8px", fontSize: "0.8125rem" }}
+                          style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 85, textAlign: "right" }}
                           value={item.unitPrice ?? ""}
                           onChange={(e) => updateLineItem(i, "unitPrice", e.target.value)}
                         />
                       ) : (
-                        <span>
+                        <span style={{ whiteSpace: "nowrap" }}>
                           {item.unitPrice != null
                             ? `${data.currency || "EUR"} ${Number(item.unitPrice).toFixed(2)}`
                             : "—"}
                         </span>
                       )}
                     </td>
-                    <td>
+                    <td style={{ textAlign: "right", width: 90 }}>
                       {editing ? (
                         <input
                           className="form-input"
                           type="number"
                           step="0.01"
-                          style={{ padding: "4px 8px", fontSize: "0.8125rem" }}
+                          style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 85, textAlign: "right" }}
                           value={item.total ?? ""}
                           onChange={(e) => updateLineItem(i, "total", e.target.value)}
                         />
                       ) : (
-                        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                        <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
                           {item.total != null
                             ? `${data.currency || "EUR"} ${Number(item.total).toFixed(2)}`
                             : "—"}
@@ -517,7 +517,7 @@ export function EditableResults({
                       )}
                     </td>
                     {editing && (
-                      <td>
+                      <td style={{ textAlign: "center", width: 36 }}>
                         <button
                           type="button"
                           onClick={() => removeLineItem(i)}
@@ -526,10 +526,13 @@ export function EditableResults({
                             border: "none",
                             color: "var(--error)",
                             cursor: "pointer",
-                            padding: 4,
+                            padding: 2,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                           }}
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={14} />
                         </button>
                       </td>
                     )}

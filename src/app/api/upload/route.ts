@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     console.warn("Local disk write skipped (serverless environment):", fsErr);
   }
 
-  // Create invoice record
+  // Create invoice record with persistent binary file attachment in database
   const invoice = await prisma.invoice.create({
     data: {
       userId: authed.userId,
@@ -123,6 +123,11 @@ export async function POST(req: NextRequest) {
       mimeType: file.type,
       pageCount,
       status: "PROCESSING",
+      fileRecord: {
+        create: {
+          data: buffer,
+        },
+      },
     },
   });
 
