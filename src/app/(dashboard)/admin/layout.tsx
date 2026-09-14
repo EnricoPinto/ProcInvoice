@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ShieldCheck, Sliders, CheckSquare, Users, Lock } from "lucide-react";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 export default async function AdminLayout({
   children,
@@ -46,25 +47,26 @@ export default async function AdminLayout({
             marginBottom: "1rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                background: "var(--gradient-primary)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "white",
-              }}
-            >
-              <ShieldCheck size={20} />
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <BrandLogo variant="full" size={44} />
             <div>
-              <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, color: "var(--text-primary)" }}>
-                Administration Portal
-              </h1>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h1 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, color: "var(--text-primary)" }}>
+                  ProcInvoice Administration
+                </h1>
+                <span
+                  style={{
+                    fontSize: "0.6875rem",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    backgroundColor: "rgba(56, 189, 248, 0.15)",
+                    color: "var(--primary)",
+                    fontWeight: 700,
+                  }}
+                >
+                  PORTAL
+                </span>
+              </div>
               <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
                 Manage keyword rules, validation engines, and user accounts
               </span>

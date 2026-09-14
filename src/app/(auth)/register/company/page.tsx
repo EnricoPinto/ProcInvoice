@@ -9,6 +9,7 @@ import { z } from "zod";
 import { Building2, ArrowLeft, AlertCircle, CheckCircle2, Eye, EyeOff, Info } from "lucide-react";
 import { BUSINESS_TYPES } from "@/lib/utils";
 import { EU_COUNTRIES } from "@/lib/compliance";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 const companySchema = z
   .object({
@@ -137,35 +138,26 @@ export default function CompanyRegisterPage() {
           >
             <ArrowLeft size={16} /> Back to Sign In
           </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                background: "var(--primary-light)",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--secondary)",
-              }}
-            >
-              <Building2 size={20} />
+
+          <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+            <div style={{ display: "inline-flex", justifyContent: "center", marginBottom: "0.75rem" }}>
+              <BrandLogo variant="full" size={72} />
             </div>
             <h1
               style={{
-                fontSize: "1.5rem",
+                fontSize: "1.6rem",
                 fontWeight: 800,
                 color: "var(--text-primary)",
                 letterSpacing: "-0.02em",
+                margin: "0 0 6px 0",
               }}
             >
               Create Company Account
             </h1>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+              Register your business account to start scanning and processing invoices.
+            </p>
           </div>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-            Register your business account to start scanning and processing invoices.
-          </p>
         </div>
 
         <div className="glass-card" style={{ padding: "2rem" }}>

@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from "lucide-react";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -57,24 +58,9 @@ function LoginForm() {
     <div className="auth-container">
       <div className="auth-card animate-slide-up" style={{ maxWidth: 440 }}>
         {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              background: "var(--gradient-primary)",
-              borderRadius: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 1rem",
-              boxShadow: "0 8px 24px rgba(99,102,241,0.4)",
-              fontSize: "1.5rem",
-              fontWeight: 800,
-              color: "white",
-            }}
-          >
-            P
+        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <div style={{ display: "inline-flex", justifyContent: "center", marginBottom: "1rem" }}>
+            <BrandLogo variant="full" size={80} />
           </div>
           <h1
             style={{

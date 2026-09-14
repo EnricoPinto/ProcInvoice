@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-utils";
 import { decrypt, decryptJson } from "@/lib/encryption";
+import { BRANDING } from "@/lib/branding";
 
 export async function GET(req: NextRequest) {
   const authed = await requireAuth(req);
@@ -62,6 +63,8 @@ export async function GET(req: NextRequest) {
   });
 
   const exportData = {
+    system: BRANDING.name,
+    logo: BRANDING.logo,
     exportDate: new Date().toISOString(),
     complianceNotice: "GDPR Article 20 - Right to Data Portability Export",
     user,

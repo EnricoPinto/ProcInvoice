@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Users,
 } from "lucide-react";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 interface SidebarProps {
   user: {
@@ -47,10 +48,11 @@ export function Sidebar({ user }: SidebarProps) {
   return (
     <aside className="sidebar">
       {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">P</div>
-        <span className="sidebar-logo-text">ProcInvoice</span>
-      </div>
+      <Link href="/dashboard" style={{ textDecoration: "none" }}>
+        <div className="sidebar-logo">
+          <BrandLogo variant="horizontal" size={36} />
+        </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="nav-section" style={{ flex: 1 }}>
