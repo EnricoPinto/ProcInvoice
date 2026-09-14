@@ -33,9 +33,24 @@ export default async function InvoiceDetailPage({
       id,
       ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id }),
     },
+    include: {
+      user: {
+        select: {
+          email: true,
+          company: { select: { companyName: true } },
+          individual: { select: { fullName: true } },
+        },
+      },
+    },
   });
 
   if (!invoice) notFound();
+
+  const uploadedBy =
+    invoice.user?.company?.companyName ||
+    invoice.user?.individual?.fullName ||
+    invoice.user?.email ||
+    "You";
 
   // Get user country for Dutch/English localization
   const user = await prisma.user.findUnique({
@@ -61,22 +76,76 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="animate-fade-in" style={{ paddingBottom: "2rem" }}>
-      {/* Header */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <Link
-          href="/invoices"
+      {/* Breadcrumb & Navigation Bar */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <nav
+          aria-label="Breadcrumb"
           style={{
-            display: "inline-flex",
+            display: "flex",
             alignItems: "center",
-            gap: 6,
-            color: "var(--text-secondary)",
-            textDecoration: "none",
+            gap: "0.5rem",
             fontSize: "0.875rem",
-            marginBottom: "0.75rem",
+            color: "var(--text-muted)",
           }}
         >
-          <ArrowLeft size={16} /> Back to Invoices
-        </Link>
+          <Link
+            href="/dashboard"
+            style={{
+              color: "var(--text-secondary)",
+              textDecoration: "none",
+              fontWeight: 500,
+              transition: "color 0.15s",
+            }}
+          >
+            Dashboard
+          </Link>
+          <span>/</span>
+          <Link
+            href="/invoices"
+            style={{
+              color: "var(--text-secondary)",
+              textDecoration: "none",
+              fontWeight: 500,
+              transition: "color 0.15s",
+            }}
+          >
+            My Invoices
+          </Link>
+          <span>/</span>
+          <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+            {invoice.fileName}
+          </span>
+        </nav>
+
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <Link
+            href="/dashboard"
+            className="btn btn-ghost btn-sm"
+            style={{ textDecoration: "none" }}
+          >
+            Dashboard
+          </Link>
+          <Link
+            href="/invoices"
+            className="btn btn-ghost btn-sm"
+            style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <ArrowLeft size={14} /> My Invoices
+          </Link>
+        </div>
+      </div>
+
+      {/* Header */}
+      <div style={{ marginBottom: "1.5rem" }}>
         <div
           style={{
             display: "flex",
@@ -104,6 +173,17 @@ export default async function InvoiceDetailPage({
               }}
             >
               <StatusChip status={invoice.status} />
+              <span
+                className="badge"
+                style={{
+                  background: "rgba(99, 102, 241, 0.12)",
+                  color: "#818cf8",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                }}
+              >
+                Uploaded by: {uploadedBy}
+              </span>
               <span style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                 {formatDate(invoice.createdAt)}
               </span>

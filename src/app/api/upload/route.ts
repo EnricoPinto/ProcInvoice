@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { recognizeInvoice } from "@/lib/ocr";
 import { rateLimit, rateLimitResponse, requireAuth } from "@/lib/api-utils";
 import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/utils";
-import { encryptJson } from "@/lib/encryption";
+import { decryptJson, encryptJson } from "@/lib/encryption";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
@@ -150,10 +150,62 @@ export async function POST(req: NextRequest) {
   });
 
   // Run OCR synchronously before returning response
+  let extractedData: any = null;
   try {
-    await runOCR(invoice.id, buffer, file.type, authed.userId, req.headers.get("x-forwarded-for") || "unknown");
+    extractedData = await runOCR(invoice.id, buffer, file.type, authed.userId, req.headers.get("x-forwarded-for") || "unknown");
   } catch (ocrErr) {
     console.error("OCR execution error:", ocrErr);
+  }
+
+  // Duplicate invoice detection check
+  const confirmDuplicate = formData.get("confirmDuplicate") === "true";
+  if (extractedData && !confirmDuplicate) {
+    const vNew = (extractedData.vendorName || "").trim().toLowerCase();
+    const numNew = (extractedData.invoiceNumber || "").trim().toLowerCase();
+    const amtNew = Number(extractedData.totalAmount) || 0;
+
+    if (vNew && numNew) {
+      const existingInvoices = await prisma.invoice.findMany({
+        where: {
+          userId: authed.userId,
+          status: "PROCESSED",
+          id: { not: invoice.id },
+        },
+        select: {
+          id: true,
+          fileName: true,
+          createdAt: true,
+          extractedData: true,
+        },
+      });
+
+      for (const existing of existingInvoices) {
+        const d: any = decryptJson(existing.extractedData) || existing.extractedData;
+        if (!d) continue;
+        const vOld = (d.vendorName || "").trim().toLowerCase();
+        const numOld = (d.invoiceNumber || "").trim().toLowerCase();
+        const amtOld = Number(d.totalAmount) || 0;
+
+        const vendorMatches = vOld === vNew;
+        const numberMatches = numOld === numNew;
+        const amountMatches = (amtNew > 0 && amtOld > 0 && Math.abs(amtNew - amtOld) < 0.01) || amtNew === 0 || amtOld === 0;
+
+        if (vendorMatches && numberMatches && amountMatches) {
+          return NextResponse.json({
+            isDuplicate: true,
+            invoiceId: invoice.id,
+            duplicateInfo: {
+              existingId: existing.id,
+              existingFileName: existing.fileName,
+              existingDate: existing.createdAt.toISOString(),
+              vendor: d.vendorName || extractedData.vendorName,
+              invoiceNumber: d.invoiceNumber || extractedData.invoiceNumber,
+              amount: d.totalAmount || extractedData.totalAmount,
+            },
+          });
+        }
+      }
+    }
   }
 
   return NextResponse.json({ success: true, invoiceId: invoice.id }, { status: 201 });
@@ -180,12 +232,19 @@ async function runOCR(invoiceId: string, buffer: Buffer, mimeType: string, userI
         ipAddress,
       },
     });
-  } catch (err) {
+
+    return extractedData;
+  } catch (err: any) {
     console.error("OCR error:", err);
+    const reason = err?.message || (typeof err === "string" ? err : "Failed to extract invoice data through OCR.");
     await prisma.invoice.update({
       where: { id: invoiceId },
-      data: { status: "FAILED" },
+      data: {
+        status: "FAILED",
+        failureReason: String(reason).slice(0, 500),
+      },
     });
+    return null;
   }
 }
 

@@ -91,6 +91,7 @@ model Invoice {
   mimeType           String
   pageCount          Int           @default(1)
   status             InvoiceStatus @default(PENDING)
+  failureReason      String?       // Stores error message when status is FAILED
   extractedData      Json?         // Stores encrypted string wrapper or JSON
   notes              String?
   retentionYears     Int           @default(7)
@@ -115,7 +116,8 @@ model InvoiceFile {
 
 model KeywordRule {
   id           String   @id @default(cuid())
-  fieldName    String   // e.g. "invoiceNumber", "vatNumber", "totalAmount"
+  fieldName    String   // e.g. "invoiceNumber", "vatNumber", "totalAmount" or "description", "netAmount"
+  ruleType     String   @default("documentField") // "documentField" | "lineItemColumn"
   keywords     String   // JSON array of strings e.g. '["Invoice No", "Factuurnummer"]'
   matchType    String   @default("EXACT") // "EXACT" | "FUZZY" | "REGEX"
   regexPattern String?

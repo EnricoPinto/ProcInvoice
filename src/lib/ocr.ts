@@ -2,6 +2,17 @@ import { prisma } from "./prisma";
 import { CloudOCREngine, type OCREngine, type RawOCRResult } from "./tesseract-engine";
 import { extractDataWithRules, DEFAULT_KEYWORD_RULES, type KeywordRuleInput } from "./keyword-extractor";
 
+export interface ExtractedLineItem {
+  description: string;
+  quantity: number;
+  unitPrice?: number;
+  total: number;
+  amount?: number;
+  netAmount?: number;
+  grossAmount?: number;
+  vatRate?: number;
+}
+
 export interface ExtractedInvoiceData {
   classifiedType?: "Factuur" | "Overige document" | string;
   invoiceNumber?: string;
@@ -12,12 +23,7 @@ export interface ExtractedInvoiceData {
   vendorVAT?: string;
   clientName?: string;
   clientAddress?: string;
-  lineItems?: Array<{
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-  }>;
+  lineItems?: ExtractedLineItem[];
   subtotal?: number;
   taxRate?: number;
   taxAmount?: number;
@@ -70,6 +76,7 @@ export async function recognizeInvoice(
           return {
             id: r.id,
             fieldName: r.fieldName,
+            ruleType: r.ruleType || "documentField",
             keywords: kwArray,
             matchType: r.matchType,
             regexPattern: r.regexPattern,

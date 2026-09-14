@@ -6,6 +6,7 @@ import { Sliders, Plus, Edit2, Trash2, CheckCircle2, AlertCircle, Sparkles, Test
 interface KeywordRule {
   id: string;
   fieldName: string;
+  ruleType?: string;
   keywords: string;
   matchType: string;
   regexPattern: string | null;
@@ -19,10 +20,12 @@ export default function KeywordRulesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "documentField" | "lineItemColumn">("all");
 
   // Modal / Form state
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [ruleType, setRuleType] = useState("documentField");
   const [fieldName, setFieldName] = useState("invoiceNumber");
   const [keywordsInput, setKeywordsInput] = useState("");
   const [matchType, setMatchType] = useState("FUZZY");
@@ -53,6 +56,7 @@ export default function KeywordRulesPage() {
 
   const handleOpenNew = () => {
     setEditingId(null);
+    setRuleType("documentField");
     setFieldName("invoiceNumber");
     setKeywordsInput("");
     setMatchType("FUZZY");
@@ -64,6 +68,7 @@ export default function KeywordRulesPage() {
 
   const handleOpenEdit = (rule: KeywordRule) => {
     setEditingId(rule.id);
+    setRuleType(rule.ruleType || "documentField");
     setFieldName(rule.fieldName);
     let parsedKw = rule.keywords;
     try {
@@ -92,6 +97,7 @@ export default function KeywordRulesPage() {
 
     const payload = {
       fieldName,
+      ruleType,
       keywords: kwArray,
       matchType,
       regexPattern: regexPattern || null,
@@ -229,6 +235,28 @@ export default function KeywordRulesPage() {
         </div>
       )}
 
+      {/* Category Tabs */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        <button
+          className={`btn ${activeTab === "all" ? "btn-primary" : "btn-ghost"} btn-sm`}
+          onClick={() => setActiveTab("all")}
+        >
+          All Rules ({rules.length})
+        </button>
+        <button
+          className={`btn ${activeTab === "documentField" ? "btn-primary" : "btn-ghost"} btn-sm`}
+          onClick={() => setActiveTab("documentField")}
+        >
+          Document Fields ({rules.filter((r) => r.ruleType !== "lineItemColumn").length})
+        </button>
+        <button
+          className={`btn ${activeTab === "lineItemColumn" ? "btn-primary" : "btn-ghost"} btn-sm`}
+          onClick={() => setActiveTab("lineItemColumn")}
+        >
+          Line-Item Columns ({rules.filter((r) => r.ruleType === "lineItemColumn").length})
+        </button>
+      </div>
+
       {/* Rules Table */}
       <div className="glass-card" style={{ marginBottom: "2rem", overflow: "hidden" }}>
         <div className="table-container">
@@ -236,6 +264,7 @@ export default function KeywordRulesPage() {
             <thead>
               <tr>
                 <th>Target Field</th>
+                <th>Category</th>
                 <th>Keywords (NL / EN Label Variants)</th>
                 <th>Type</th>
                 <th>Priority</th>
@@ -244,18 +273,37 @@ export default function KeywordRulesPage() {
               </tr>
             </thead>
             <tbody>
-              {rules.map((rule) => {
+              {rules
+                .filter((r) => {
+                  if (activeTab === "all") return true;
+                  if (activeTab === "lineItemColumn") return r.ruleType === "lineItemColumn";
+                  return r.ruleType !== "lineItemColumn";
+                })
+                .map((rule) => {
                 let kwList: string[] = [];
                 try {
                   kwList = JSON.parse(rule.keywords);
                 } catch {
                   kwList = rule.keywords.split(",");
                 }
+                const isColumnRule = rule.ruleType === "lineItemColumn";
                 return (
                   <tr key={rule.id}>
                     <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>
                       <span className="badge badge-pending" style={{ fontFamily: "monospace" }}>
                         {rule.fieldName}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className="badge"
+                        style={{
+                          background: isColumnRule ? "rgba(59,130,246,0.15)" : "rgba(168,85,247,0.15)",
+                          color: isColumnRule ? "#60a5fa" : "#c084fc",
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        {isColumnRule ? "Line Column" : "Document Field"}
                       </span>
                     </td>
                     <td>
@@ -388,27 +436,63 @@ export default function KeywordRulesPage() {
 
             <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div>
-                <label className="form-label">Target Field Name</label>
+                <label className="form-label">Rule Scope / Category</label>
                 <select
                   className="form-input"
-                  value={fieldName}
-                  onChange={(e) => setFieldName(e.target.value)}
+                  value={ruleType}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setRuleType(next);
+                    if (next === "lineItemColumn") {
+                      setFieldName("description");
+                    } else {
+                      setFieldName("invoiceNumber");
+                    }
+                  }}
                 >
-                  <option value="classifiedType">classifiedType (Document Classification)</option>
-                  <option value="invoiceNumber">invoiceNumber</option>
-                  <option value="invoiceDate">invoiceDate</option>
-                  <option value="dueDate">dueDate</option>
-                  <option value="vendorName">vendorName</option>
-                  <option value="vendorAddress">vendorAddress</option>
-                  <option value="vendorVAT">vendorVAT</option>
-                  <option value="clientName">clientName</option>
-                  <option value="clientAddress">clientAddress</option>
-                  <option value="iban">iban</option>
-                  <option value="subtotal">subtotal</option>
-                  <option value="taxAmount">taxAmount</option>
-                  <option value="totalAmount">totalAmount</option>
-                  <option value="notes">notes</option>
+                  <option value="documentField">Document Field Rule (e.g. Invoice #, Vendor, Total)</option>
+                  <option value="lineItemColumn">Line-Item Column Rule (e.g. Description, Netto, Bruto, BTW)</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="form-label">Target Field Name</label>
+                {ruleType === "lineItemColumn" ? (
+                  <select
+                    className="form-input"
+                    value={fieldName}
+                    onChange={(e) => setFieldName(e.target.value)}
+                  >
+                    <option value="description">description (Item description / Product name column)</option>
+                    <option value="quantity">quantity (Quantity / Aantal column)</option>
+                    <option value="amount">amount (General Amount / Bedrag column)</option>
+                    <option value="netAmount">netAmount (Net Amount / Netto column - Excl. VAT)</option>
+                    <option value="grossAmount">grossAmount (Gross Amount / Bruto column - Incl. VAT)</option>
+                    <option value="vatRate">vatRate (VAT percent / BTW% column)</option>
+                  </select>
+                ) : (
+                  <select
+                    className="form-input"
+                    value={fieldName}
+                    onChange={(e) => setFieldName(e.target.value)}
+                  >
+                    <option value="classifiedType">classifiedType (Document Classification)</option>
+                    <option value="invoiceNumber">invoiceNumber</option>
+                    <option value="invoiceDate">invoiceDate</option>
+                    <option value="dueDate">dueDate</option>
+                    <option value="vendorName">vendorName</option>
+                    <option value="vendorAddress">vendorAddress</option>
+                    <option value="vendorVAT">vendorVAT</option>
+                    <option value="clientName">clientName</option>
+                    <option value="clientAddress">clientAddress</option>
+                    <option value="paymentTerms">paymentTerms</option>
+                    <option value="iban">iban</option>
+                    <option value="subtotal">subtotal</option>
+                    <option value="taxAmount">taxAmount</option>
+                    <option value="totalAmount">totalAmount</option>
+                    <option value="notes">notes</option>
+                  </select>
+                )}
               </div>
 
               <div>

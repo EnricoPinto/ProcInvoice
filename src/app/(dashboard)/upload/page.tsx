@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatFileSize, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/utils";
 import { MultiPageModal } from "@/components/upload/MultiPageModal";
+import { DuplicateWarningModal } from "@/components/upload/DuplicateWarningModal";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -24,6 +25,9 @@ export default function UploadPage() {
   const [showModal, setShowModal] = useState(false);
   const [pageCount, setPageCount] = useState(0);
   const [skipWarning, setSkipWarning] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<any | null>(null);
+  const [duplicateInvoiceId, setDuplicateInvoiceId] = useState<string | null>(null);
+  const [isDiscarding, setIsDiscarding] = useState(false);
 
   // Fetch user settings to check if modal should be skipped
   useEffect(() => {
@@ -100,12 +104,43 @@ export default function UploadPage() {
         return;
       }
 
+      if (data.isDuplicate) {
+        setDuplicateInfo(data.duplicateInfo);
+        setDuplicateInvoiceId(data.invoiceId);
+        setUploading(false);
+        return;
+      }
+
       // Success — redirect to invoice detail
       router.push(`/invoices/${data.invoiceId}`);
     } catch {
       setError("Network error. Please check your connection.");
       setUploading(false);
     }
+  };
+
+  const handleDiscardDuplicate = async () => {
+    if (!duplicateInvoiceId) return;
+    setIsDiscarding(true);
+    try {
+      await fetch(`/api/invoices/${duplicateInvoiceId}`, { method: "DELETE" });
+    } catch (err) {
+      console.error("Error discarding duplicate:", err);
+    } finally {
+      setIsDiscarding(false);
+      setDuplicateInfo(null);
+      setDuplicateInvoiceId(null);
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleContinueDuplicate = () => {
+    if (!duplicateInvoiceId) return;
+    const targetId = duplicateInvoiceId;
+    setDuplicateInfo(null);
+    setDuplicateInvoiceId(null);
+    router.push(`/invoices/${targetId}`);
   };
 
   const handleModalConfirm = async (rememberSetting: boolean) => {
@@ -297,6 +332,15 @@ export default function UploadPage() {
           onCancel={handleModalCancel}
         />
       )}
+
+      {/* Duplicate detection warning modal */}
+      <DuplicateWarningModal
+        isOpen={Boolean(duplicateInfo)}
+        duplicateInfo={duplicateInfo}
+        onDiscard={handleDiscardDuplicate}
+        onContinue={handleContinueDuplicate}
+        isProcessing={isDiscarding}
+      />
     </div>
   );
 }

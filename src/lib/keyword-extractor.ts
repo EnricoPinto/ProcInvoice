@@ -1,15 +1,61 @@
-import type { ExtractedInvoiceData } from "./ocr";
+import type { ExtractedInvoiceData, ExtractedLineItem } from "./ocr";
 import type { RawOCRResult } from "./tesseract-engine";
 
 export interface KeywordRuleInput {
   id?: string;
   fieldName: string;
+  ruleType?: string; // "documentField" | "lineItemColumn"
   keywords: string[];
   matchType: string; // "EXACT" | "FUZZY" | "REGEX"
   regexPattern?: string | null;
   enabled?: boolean;
   priority?: number;
 }
+
+export const DEFAULT_LINE_ITEM_COLUMN_RULES: KeywordRuleInput[] = [
+  {
+    fieldName: "description",
+    ruleType: "lineItemColumn",
+    keywords: ["Omschrijving", "Artikel naam", "Product", "Description", "Artikel", "Item"],
+    matchType: "FUZZY",
+    priority: 10,
+  },
+  {
+    fieldName: "amount",
+    ruleType: "lineItemColumn",
+    keywords: ["Bedrag", "Amount", "Prijs", "Totaal"],
+    matchType: "FUZZY",
+    priority: 8,
+  },
+  {
+    fieldName: "netAmount",
+    ruleType: "lineItemColumn",
+    keywords: ["Netto", "Net amount", "Excl. BTW", "Netto bedrag", "Net"],
+    matchType: "FUZZY",
+    priority: 9,
+  },
+  {
+    fieldName: "grossAmount",
+    ruleType: "lineItemColumn",
+    keywords: ["Bruto", "Gross amount", "Incl. BTW", "Bruto bedrag", "Gross"],
+    matchType: "FUZZY",
+    priority: 9,
+  },
+  {
+    fieldName: "vatRate",
+    ruleType: "lineItemColumn",
+    keywords: ["BTW", "BTW%", "VAT", "VAT%", "Btw-tarief"],
+    matchType: "FUZZY",
+    priority: 7,
+  },
+  {
+    fieldName: "quantity",
+    ruleType: "lineItemColumn",
+    keywords: ["Aantal", "Qty", "Quantity", "Stuk", "Stucks", "St."],
+    matchType: "FUZZY",
+    priority: 10,
+  },
+];
 
 export const DEFAULT_KEYWORD_RULES: KeywordRuleInput[] = [
   {
@@ -192,11 +238,16 @@ export function extractDataWithRules(
   // Sort rules by priority descending
   const sortedRules = [...rules].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
+  // Separate document-level rules and line-item column rules
+  const documentRules = sortedRules.filter((r) => r.ruleType !== "lineItemColumn");
+  const columnRules = sortedRules.filter((r) => r.ruleType === "lineItemColumn");
+  const effectiveColumnRules = columnRules.length > 0 ? columnRules : DEFAULT_LINE_ITEM_COLUMN_RULES;
+
   // 1. Detect classifiedType from OCR text region ABOVE the line-items table
-  result.classifiedType = detectClassifiedType(lines, text, sortedRules);
+  result.classifiedType = detectClassifiedType(lines, text, documentRules);
 
   // 2. Extract standard fields
-  for (const rule of sortedRules) {
+  for (const rule of documentRules) {
     if (rule.enabled === false || rule.fieldName === "classifiedType") continue;
     const extractedValue = extractSingleField(lines, text, rule);
     if (extractedValue) {
@@ -217,9 +268,9 @@ export function extractDataWithRules(
     if (ibanMatch) result.bankDetails = `IBAN: ${ibanMatch[1]}`;
   }
 
-  // Parse line items if not already populated
+  // Parse line items with column rules if not already populated
   if (!result.lineItems || result.lineItems.length === 0) {
-    result.lineItems = parseLineItemsFromLines(lines);
+    result.lineItems = parseLineItemsFromLines(lines, effectiveColumnRules);
   }
 
   if (!result.currency) {
@@ -531,17 +582,23 @@ function findLineItemTableStartIndex(lines: string[]): number {
 }
 
 function parseLineItemsFromLines(
-  lines: string[]
-): Array<{ description: string; quantity: number; unitPrice: number; total: number }> {
+  lines: string[],
+  columnRules: KeywordRuleInput[] = DEFAULT_LINE_ITEM_COLUMN_RULES
+): ExtractedLineItem[] {
   const tableStart = findLineItemTableStartIndex(lines);
+  const headerLine = tableStart >= 0 ? lines[tableStart].toLowerCase() : "";
   const candidateLines = tableStart >= 0 ? lines.slice(tableStart + 1) : lines;
-  const items: Array<{
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-  }> = [];
 
+  // Determine which column headers are present based on columnRules
+  const netRule = columnRules.find((r) => r.fieldName === "netAmount") || DEFAULT_LINE_ITEM_COLUMN_RULES[2];
+  const grossRule = columnRules.find((r) => r.fieldName === "grossAmount") || DEFAULT_LINE_ITEM_COLUMN_RULES[3];
+  const vatRule = columnRules.find((r) => r.fieldName === "vatRate") || DEFAULT_LINE_ITEM_COLUMN_RULES[4];
+
+  const hasNetHeader = netRule?.keywords.some((k) => headerLine.includes(k.toLowerCase())) ?? false;
+  const hasGrossHeader = grossRule?.keywords.some((k) => headerLine.includes(k.toLowerCase())) ?? false;
+  const hasVatHeader = vatRule?.keywords.some((k) => headerLine.includes(k.toLowerCase())) ?? false;
+
+  const items: ExtractedLineItem[] = [];
   const stopKeywords = ["subtotaal", "subtotal", "totaal", "total", "btw", "tax", "korting", "discount", "pagina", "page", "bank", "iban"];
   const ignorePrefixes = ["datum", "date", "factuur", "invoice", "tel:", "e-mail", "van:", "aan:"];
 
@@ -554,6 +611,41 @@ function parseLineItemsFromLines(
       continue;
     }
 
+    // Check for VAT % in line (e.g. 21% or 9%)
+    let lineVatRate: number | undefined = undefined;
+    const vatMatch = line.match(/\b(\d{1,2}(?:[.,]\d+)?)\s*%/);
+    if (vatMatch) {
+      lineVatRate = parseFloat(vatMatch[1].replace(",", "."));
+    }
+
+    // Try 3-number match: Description ... Qty ... Netto ... Bruto
+    const dualAmountMatch = line.match(
+      /^(.+?)\s*(\d+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)?$/
+    );
+
+    if (dualAmountMatch && (hasNetHeader || hasGrossHeader) && dualAmountMatch[5]) {
+      const desc = dualAmountMatch[1].trim();
+      const qty = parseInt(dualAmountMatch[2], 10);
+      const unitP = parseAmount(dualAmountMatch[3]);
+      const netVal = parseAmount(dualAmountMatch[4]);
+      const grossVal = parseAmount(dualAmountMatch[5]);
+
+      if (desc && !isNaN(qty) && desc.length > 2) {
+        items.push({
+          description: desc,
+          quantity: qty,
+          unitPrice: unitP,
+          total: grossVal || netVal,
+          amount: grossVal || netVal,
+          netAmount: netVal,
+          grossAmount: grossVal,
+          vatRate: lineVatRate,
+        });
+        continue;
+      }
+    }
+
+    // Standard 2-number match: Description ... Qty ... UnitPrice ... Total
     const match = line.match(/^(.+?)\s*(\d+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)$/);
     if (match) {
       const desc = match[1].trim();
@@ -566,6 +658,10 @@ function parseLineItemsFromLines(
           quantity: qty,
           unitPrice: price,
           total: tot,
+          amount: tot,
+          netAmount: hasNetHeader && !hasGrossHeader ? tot : undefined,
+          grossAmount: hasGrossHeader && !hasNetHeader ? tot : undefined,
+          vatRate: lineVatRate,
         });
       }
     }

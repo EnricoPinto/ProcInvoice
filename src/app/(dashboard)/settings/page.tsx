@@ -1,12 +1,34 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Shield, RotateCcw, CheckCircle2, AlertCircle, Download, Trash2, Database } from "lucide-react";
+import {
+  Settings,
+  Shield,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  Download,
+  Trash2,
+  Database,
+  Activity,
+  Laptop,
+  Clock,
+} from "lucide-react";
 import { signOut } from "next-auth/react";
+import { formatDate } from "@/lib/utils";
 
 interface UserSettings {
   skipMultiPageWarning: boolean;
   retentionYears?: number;
+}
+
+interface AuditActivity {
+  id: string;
+  action: string;
+  resource: string;
+  ipAddress: string;
+  createdAt: string;
+  isCurrent: boolean;
 }
 
 export default function SettingsPage() {
@@ -17,12 +39,20 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [lastLoginAt, setLastLoginAt] = useState<string | null>(null);
+  const [currentIp, setCurrentIp] = useState("127.0.0.1");
+  const [userAgent, setUserAgent] = useState("Web Browser");
+  const [recentActivities, setRecentActivities] = useState<AuditActivity[]>([]);
 
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((d) => {
         if (d.settings) setSettings(d.settings);
+        if (d.lastLoginAt) setLastLoginAt(d.lastLoginAt);
+        if (d.currentIp) setCurrentIp(d.currentIp);
+        if (d.userAgent) setUserAgent(d.userAgent);
+        if (d.recentActivities) setRecentActivities(d.recentActivities);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -249,6 +279,187 @@ export default function SettingsPage() {
               <Trash2 size={14} /> Delete Account
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Active Sessions & Login Activity */}
+      <div className="glass-card" style={{ padding: "1.75rem", marginBottom: "1rem" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "1.25rem",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                background: "rgba(59, 130, 246, 0.15)",
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--primary)",
+              }}
+            >
+              <Laptop size={18} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                Active Sessions & Activity History
+              </h2>
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: 0 }}>
+                Recent login and account traceability records from your audit log.
+              </p>
+            </div>
+          </div>
+
+          {lastLoginAt && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 20,
+                backgroundColor: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                fontSize: "0.8125rem",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <Clock size={13} style={{ color: "var(--primary)" }} />
+              <span>
+                Last Login: <strong style={{ color: "var(--text)" }}>{formatDate(lastLoginAt)}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div
+          className="table-container"
+          style={{
+            margin: 0,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+          }}
+        >
+          <table className="data-table" style={{ fontSize: "0.85rem" }}>
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Device / Client</th>
+                <th>IP Address</th>
+                <th>Timestamp</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentActivities.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    style={{ textAlign: "center", color: "var(--text-muted)", padding: "1.5rem" }}
+                  >
+                    No recent activity logs recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                recentActivities.map((act) => {
+                  const formatAction = (raw: string) => {
+                    switch (raw) {
+                      case "LOGIN":
+                        return "User Login";
+                      case "UPLOAD_INVOICE":
+                        return "Uploaded Invoice";
+                      case "OCR_COMPLETE":
+                        return "OCR Recognition";
+                      case "VIEW_INVOICE":
+                        return "Viewed Invoice";
+                      case "EDIT_INVOICE":
+                        return "Edited Invoice Data";
+                      case "DELETE_INVOICE":
+                        return "Deleted Invoice";
+                      case "EXPORT_UBL":
+                        return "Exported UBL 2.1 XML";
+                      case "SETTINGS_UPDATE":
+                        return "Updated Settings";
+                      case "EXPORT_DATA":
+                        return "Downloaded Account Data";
+                      default:
+                        return raw.replace(/_/g, " ");
+                    }
+                  };
+
+                  return (
+                    <tr key={act.id}>
+                      <td style={{ fontWeight: 600, color: "var(--text)" }}>
+                        {formatAction(act.action)}
+                      </td>
+                      <td
+                        style={{
+                          color: "var(--text-secondary)",
+                          maxWidth: 220,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                        title={userAgent}
+                      >
+                        {userAgent.includes("Windows")
+                          ? "Windows PC"
+                          : userAgent.includes("Mac")
+                          ? "Mac OS"
+                          : "Web Client"}
+                      </td>
+                      <td style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>
+                        {act.ipAddress}
+                      </td>
+                      <td style={{ whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
+                        {formatDate(act.createdAt)}
+                      </td>
+                      <td>
+                        {act.isCurrent ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              color: "var(--success)",
+                              backgroundColor: "rgba(16, 185, 129, 0.12)",
+                              padding: "2px 8px",
+                              borderRadius: 12,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                backgroundColor: "var(--success)",
+                              }}
+                            />
+                            Current session
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                            Completed
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

@@ -12,6 +12,7 @@ export async function PATCH(
   const { id } = await params;
   let body: {
     fieldName?: string;
+    ruleType?: string;
     keywords?: string[] | string;
     matchType?: string;
     regexPattern?: string;
@@ -38,6 +39,7 @@ export async function PATCH(
     where: { id },
     data: {
       ...(body.fieldName !== undefined && { fieldName: body.fieldName }),
+      ...(body.ruleType !== undefined && { ruleType: body.ruleType }),
       ...(kwStr !== undefined && { keywords: kwStr }),
       ...(body.matchType !== undefined && { matchType: body.matchType }),
       ...(body.regexPattern !== undefined && { regexPattern: body.regexPattern }),

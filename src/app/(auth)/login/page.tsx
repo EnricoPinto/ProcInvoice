@@ -23,6 +23,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const registered = params.get("registered");
+  const timeout = params.get("reason") === "timeout";
 
   const {
     register,
@@ -91,6 +92,13 @@ function LoginForm() {
         </div>
 
         <div className="glass-card" style={{ padding: "2rem" }}>
+          {timeout && (
+            <div className="alert alert-warning" style={{ marginBottom: "1.25rem" }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              You were logged out due to inactivity.
+            </div>
+          )}
+
           {registered && (
             <div className="alert alert-success" style={{ marginBottom: "1.25rem" }}>
               <CheckCircle2 size={16} style={{ flexShrink: 0 }} />

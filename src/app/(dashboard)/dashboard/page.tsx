@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { formatDate, formatFileSize } from "@/lib/utils";
+import { StatusBadge } from "@/components/invoice/StatusBadge";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -220,7 +221,7 @@ export default async function DashboardPage() {
                     <td>{formatFileSize(invoice.fileSize)}</td>
                     <td>{invoice.pageCount}</td>
                     <td>
-                      <StatusBadge status={invoice.status} />
+                      <StatusBadge status={invoice.status} failureReason={invoice.failureReason} />
                     </td>
                     <td>{formatDate(invoice.createdAt)}</td>
                     <td>
@@ -240,20 +241,5 @@ export default async function DashboardPage() {
         )}
       </div>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
-    PENDING: { cls: "badge-pending", icon: <Clock size={11} />, label: "Pending" },
-    PROCESSING: { cls: "badge-processing", icon: <Clock size={11} />, label: "Processing" },
-    PROCESSED: { cls: "badge-processed", icon: <CheckCircle2 size={11} />, label: "Processed" },
-    FAILED: { cls: "badge-failed", icon: <XCircle size={11} />, label: "Failed" },
-  };
-  const s = map[status] || map.PENDING;
-  return (
-    <span className={`badge ${s.cls}`}>
-      {s.icon} {s.label}
-    </span>
   );
 }

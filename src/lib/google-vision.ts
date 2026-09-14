@@ -84,7 +84,11 @@ Output a strictly valid JSON object with the following schema (do not wrap in ma
       "description": "string",
       "quantity": number,
       "unitPrice": number,
-      "total": number
+      "total": number,
+      "amount": number,
+      "netAmount": number,
+      "grossAmount": number,
+      "vatRate": number
     }
   ]
 }`;
@@ -290,7 +294,11 @@ Output a strictly valid JSON object with the following schema (do not wrap in ma
       "description": "string",
       "quantity": number,
       "unitPrice": number,
-      "total": number
+      "total": number,
+      "amount": number,
+      "netAmount": number,
+      "grossAmount": number,
+      "vatRate": number
     }
   ]
 }

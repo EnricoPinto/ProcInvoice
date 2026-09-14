@@ -1,18 +1,24 @@
 import { prisma } from "./prisma";
-import { DEFAULT_KEYWORD_RULES } from "./keyword-extractor";
+import { DEFAULT_KEYWORD_RULES, DEFAULT_LINE_ITEM_COLUMN_RULES } from "./keyword-extractor";
 
 export async function ensureDefaultKeywordRules() {
   try {
+    const allRules = [
+      ...DEFAULT_KEYWORD_RULES.map((r) => ({ ...r, ruleType: "documentField" })),
+      ...DEFAULT_LINE_ITEM_COLUMN_RULES.map((r) => ({ ...r, ruleType: "lineItemColumn" })),
+    ];
+
     // 1. Seed or extend Keyword Rules
-    for (const defRule of DEFAULT_KEYWORD_RULES) {
+    for (const defRule of allRules) {
       const existing = await prisma.keywordRule.findFirst({
-        where: { fieldName: defRule.fieldName },
+        where: { fieldName: defRule.fieldName, ruleType: defRule.ruleType },
       });
 
       if (!existing) {
         await prisma.keywordRule.create({
           data: {
             fieldName: defRule.fieldName,
+            ruleType: defRule.ruleType,
             keywords: JSON.stringify(defRule.keywords),
             matchType: defRule.matchType,
             regexPattern: defRule.regexPattern || null,
@@ -38,10 +44,11 @@ export async function ensureDefaultKeywordRules() {
           }
         }
 
-        if (hasNew) {
+        if (hasNew || existing.ruleType !== defRule.ruleType) {
           await prisma.keywordRule.update({
             where: { id: existing.id },
             data: {
+              ruleType: defRule.ruleType,
               keywords: JSON.stringify(mergedKws),
               regexPattern: existing.regexPattern || defRule.regexPattern || null,
             },

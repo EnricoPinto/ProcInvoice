@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
 
   let body: {
     fieldName: string;
+    ruleType?: string;
     keywords: string[] | string;
     matchType?: string;
     regexPattern?: string;
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
   const rule = await prisma.keywordRule.create({
     data: {
       fieldName: body.fieldName,
+      ruleType: body.ruleType || "documentField",
       keywords: kwStr,
       matchType: body.matchType || "EXACT",
       regexPattern: body.regexPattern || null,

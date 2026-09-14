@@ -19,6 +19,15 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function formatCurrency(amount: number | string, currency = "EUR"): string {
+  const num = typeof amount === "number" ? amount : parseFloat(String(amount));
+  if (isNaN(num)) return "€0.00";
+  return new Intl.NumberFormat("nl-NL", {
+    style: "currency",
+    currency: currency || "EUR",
+  }).format(num);
+}
+
 export const BUSINESS_TYPES = [
   "Sole Proprietor",
   "Partnership",

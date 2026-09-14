@@ -442,102 +442,179 @@ export function EditableResults({
           <div className="table-container" style={{ margin: 0, overflowX: "auto" }}>
             <table className="invoice-items-table" style={{ fontSize: "0.8125rem", width: "100%" }}>
               <thead>
-                <tr>
-                  <th style={{ minWidth: 120 }}>{t.description}</th>
-                  <th style={{ width: 55, textAlign: "center" }}>{t.quantity}</th>
-                  <th style={{ width: 90, textAlign: "right" }}>{t.unitPrice}</th>
-                  <th style={{ width: 90, textAlign: "right" }}>{t.total}</th>
-                  {editing && <th style={{ width: 36, textAlign: "center" }}></th>}
-                </tr>
+                {(() => {
+                  const items = (editing ? draft : data).lineItems || [];
+                  const showNetCol = items.some((it) => it.netAmount != null);
+                  const showGrossCol = items.some((it) => it.grossAmount != null);
+                  const showVatCol = items.some((it) => it.vatRate != null);
+
+                  return (
+                    <>
+                      <tr>
+                        <th style={{ minWidth: 120 }}>{t.description}</th>
+                        <th style={{ width: 55, textAlign: "center" }}>{t.quantity}</th>
+                        <th style={{ width: 85, textAlign: "right" }}>{t.unitPrice}</th>
+                        {showNetCol && <th style={{ width: 85, textAlign: "right" }}>Netto</th>}
+                        {showVatCol && <th style={{ width: 55, textAlign: "center" }}>BTW%</th>}
+                        {showGrossCol && <th style={{ width: 85, textAlign: "right" }}>Bruto</th>}
+                        <th style={{ width: 90, textAlign: "right" }}>{t.total}</th>
+                        {editing && <th style={{ width: 36, textAlign: "center" }}></th>}
+                      </tr>
+                    </>
+                  );
+                })()}
               </thead>
               <tbody>
-                {((editing ? draft : data).lineItems || []).map((item, i) => (
-                  <tr key={i}>
-                    <td style={{ minWidth: 120 }}>
-                      {editing ? (
-                        <input
-                          className="form-input"
-                          style={{ padding: "4px 6px", fontSize: "0.8125rem", width: "100%", boxConfig: "border-box" } as React.CSSProperties}
-                          value={item.description || ""}
-                          onChange={(e) => updateLineItem(i, "description", e.target.value)}
-                        />
-                      ) : (
-                        <span style={{ color: "var(--text-primary)", fontWeight: 500, wordBreak: "break-word" }}>
-                          {item.description}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "center", width: 55 }}>
-                      {editing ? (
-                        <input
-                          className="form-input"
-                          type="number"
-                          style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 50, textAlign: "center" }}
-                          value={item.quantity ?? ""}
-                          onChange={(e) => updateLineItem(i, "quantity", e.target.value)}
-                        />
-                      ) : (
-                        <span>{item.quantity ?? "—"}</span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "right", width: 90 }}>
-                      {editing ? (
-                        <input
-                          className="form-input"
-                          type="number"
-                          step="0.01"
-                          style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 85, textAlign: "right" }}
-                          value={item.unitPrice ?? ""}
-                          onChange={(e) => updateLineItem(i, "unitPrice", e.target.value)}
-                        />
-                      ) : (
-                        <span style={{ whiteSpace: "nowrap" }}>
-                          {item.unitPrice != null
-                            ? `${data.currency || "EUR"} ${Number(item.unitPrice).toFixed(2)}`
-                            : "—"}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "right", width: 90 }}>
-                      {editing ? (
-                        <input
-                          className="form-input"
-                          type="number"
-                          step="0.01"
-                          style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 85, textAlign: "right" }}
-                          value={item.total ?? ""}
-                          onChange={(e) => updateLineItem(i, "total", e.target.value)}
-                        />
-                      ) : (
-                        <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
-                          {item.total != null
-                            ? `${data.currency || "EUR"} ${Number(item.total).toFixed(2)}`
-                            : "—"}
-                        </span>
-                      )}
-                    </td>
-                    {editing && (
-                      <td style={{ textAlign: "center", width: 36 }}>
-                        <button
-                          type="button"
-                          onClick={() => removeLineItem(i)}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "var(--error)",
-                            cursor: "pointer",
-                            padding: 2,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                {(() => {
+                  const items = (editing ? draft : data).lineItems || [];
+                  const showNetCol = items.some((it) => it.netAmount != null);
+                  const showGrossCol = items.some((it) => it.grossAmount != null);
+                  const showVatCol = items.some((it) => it.vatRate != null);
+
+                  return items.map((item, i) => (
+                    <tr key={i}>
+                      <td>
+                        {editing ? (
+                          <input
+                            className="form-input"
+                            style={{ padding: "4px 6px", fontSize: "0.8125rem", width: "100%", boxSizing: "border-box" } as React.CSSProperties}
+                            value={item.description || ""}
+                            onChange={(e) => updateLineItem(i, "description", e.target.value)}
+                          />
+                        ) : (
+                          <span style={{ color: "var(--text-primary)", fontWeight: 500, wordBreak: "break-word" }}>
+                            {item.description}
+                          </span>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td style={{ textAlign: "center", width: 55 }}>
+                        {editing ? (
+                          <input
+                            className="form-input"
+                            type="number"
+                            style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 50, textAlign: "center" }}
+                            value={item.quantity ?? ""}
+                            onChange={(e) => updateLineItem(i, "quantity", e.target.value)}
+                          />
+                        ) : (
+                          <span>{item.quantity ?? "—"}</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: "right", width: 85 }}>
+                        {editing ? (
+                          <input
+                            className="form-input"
+                            type="number"
+                            step="0.01"
+                            style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 80, textAlign: "right" }}
+                            value={item.unitPrice ?? ""}
+                            onChange={(e) => updateLineItem(i, "unitPrice", e.target.value)}
+                          />
+                        ) : (
+                          <span style={{ whiteSpace: "nowrap" }}>
+                            {item.unitPrice != null
+                              ? `${data.currency || "EUR"} ${Number(item.unitPrice).toFixed(2)}`
+                              : "—"}
+                          </span>
+                        )}
+                      </td>
+                      {showNetCol && (
+                        <td style={{ textAlign: "right", width: 85 }}>
+                          {editing ? (
+                            <input
+                              className="form-input"
+                              type="number"
+                              step="0.01"
+                              style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 80, textAlign: "right" }}
+                              value={item.netAmount ?? ""}
+                              onChange={(e) => updateLineItem(i, "netAmount", e.target.value)}
+                            />
+                          ) : (
+                            <span style={{ whiteSpace: "nowrap" }}>
+                              {item.netAmount != null
+                                ? `${data.currency || "EUR"} ${Number(item.netAmount).toFixed(2)}`
+                                : "—"}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      {showVatCol && (
+                        <td style={{ textAlign: "center", width: 55 }}>
+                          {editing ? (
+                            <input
+                              className="form-input"
+                              type="number"
+                              step="0.1"
+                              style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 50, textAlign: "center" }}
+                              value={item.vatRate ?? ""}
+                              onChange={(e) => updateLineItem(i, "vatRate", e.target.value)}
+                            />
+                          ) : (
+                            <span>{item.vatRate != null ? `${item.vatRate}%` : "—"}</span>
+                          )}
+                        </td>
+                      )}
+                      {showGrossCol && (
+                        <td style={{ textAlign: "right", width: 85 }}>
+                          {editing ? (
+                            <input
+                              className="form-input"
+                              type="number"
+                              step="0.01"
+                              style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 80, textAlign: "right" }}
+                              value={item.grossAmount ?? ""}
+                              onChange={(e) => updateLineItem(i, "grossAmount", e.target.value)}
+                            />
+                          ) : (
+                            <span style={{ whiteSpace: "nowrap" }}>
+                              {item.grossAmount != null
+                                ? `${data.currency || "EUR"} ${Number(item.grossAmount).toFixed(2)}`
+                                : "—"}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td style={{ textAlign: "right", width: 90 }}>
+                        {editing ? (
+                          <input
+                            className="form-input"
+                            type="number"
+                            step="0.01"
+                            style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 85, textAlign: "right" }}
+                            value={item.total ?? ""}
+                            onChange={(e) => updateLineItem(i, "total", e.target.value)}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
+                            {item.total != null
+                              ? `${data.currency || "EUR"} ${Number(item.total).toFixed(2)}`
+                              : "—"}
+                          </span>
+                        )}
+                      </td>
+                      {editing && (
+                        <td style={{ textAlign: "center", width: 36 }}>
+                          <button
+                            type="button"
+                            onClick={() => removeLineItem(i)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "var(--error)",
+                              cursor: "pointer",
+                              padding: 2,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
           </div>
