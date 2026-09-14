@@ -123,12 +123,16 @@ export const DEFAULT_KEYWORD_RULES: KeywordRuleInput[] = [
   {
     fieldName: "clientName",
     keywords: [
+      "Factureer aan",
+      "Factuur aan",
+      "Gefactureerd aan",
       "Aan",
       "Debtor",
       "Klant",
       "Bill To",
       "Client",
       "Customer",
+      "Ontvanger",
     ],
     matchType: "FUZZY",
     priority: 5,
@@ -164,6 +168,12 @@ export const DEFAULT_KEYWORD_RULES: KeywordRuleInput[] = [
     matchType: "FUZZY",
     priority: 10,
   },
+  {
+    fieldName: "paymentTerms",
+    keywords: ["Betalingstermijn", "Betalingsvoorwaarden", "Payment Terms", "Terms", "Condities", "Vervaltermijn"],
+    matchType: "FUZZY",
+    priority: 6,
+  },
 ];
 
 /**
@@ -196,8 +206,10 @@ export function extractDataWithRules(
 
   // Fallbacks for critical missing fields via direct regex scanning
   if (!result.vendorVAT) {
-    const vatMatch = text.match(/\b(NL\d{9}B\d{2}|[A-Z]{2}[0-9A-Z]{8,12})\b/i);
-    if (vatMatch) result.vendorVAT = vatMatch[1].toUpperCase();
+    const vatMatch = text.match(/\b(NL\d{9}B\d{2}|[A-Z]{2}\d{6,12}[A-Z0-9]{0,4})\b/i);
+    if (vatMatch && /\d/.test(vatMatch[1])) {
+      result.vendorVAT = vatMatch[1].toUpperCase();
+    }
   }
 
   if (!result.bankDetails) {
@@ -431,6 +443,9 @@ function assignFieldToResult(
     case "totalAmount":
       target.totalAmount = target.totalAmount || parseAmount(cleanVal);
       break;
+    case "paymentTerms":
+      target.paymentTerms = target.paymentTerms || cleanVal;
+      break;
     case "notes":
       target.notes = target.notes || cleanVal;
       break;
@@ -444,13 +459,32 @@ function parseDateString(str: string): string {
 }
 
 function parseAmount(str: string): number {
-  const clean = str.replace(/[^0-9,.-]/g, "").replace(",", ".");
+  const clean = str.replace(/[^0-9,.-]/g, "").trim();
+  if (!clean) return 0;
+  const lastComma = clean.lastIndexOf(",");
+  const lastDot = clean.lastIndexOf(".");
+  if (lastComma > lastDot) {
+    // European format: 83.885,00 -> remove dots, replace comma with dot
+    const numStr = clean.replace(/\./g, "").replace(",", ".");
+    const num = parseFloat(numStr);
+    return isNaN(num) ? 0 : num;
+  } else if (lastDot > lastComma) {
+    // US format: 83,885.00 -> remove commas
+    const numStr = clean.replace(/,/g, "");
+    const num = parseFloat(numStr);
+    return isNaN(num) ? 0 : num;
+  } else if (lastComma !== -1) {
+    // 123,45 -> 123.45
+    const numStr = clean.replace(",", ".");
+    const num = parseFloat(numStr);
+    return isNaN(num) ? 0 : num;
+  }
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
 }
 
 function isHeaderLine(line: string): boolean {
-  const lower = line.toLowerCase().trim();
+  const lower = line.toLowerCase().trim().replace(/[:#.-]+$/, "");
   return (
     lower === "invoice" ||
     lower === "factuur" ||
@@ -458,13 +492,49 @@ function isHeaderLine(line: string): boolean {
     lower === "totaal" ||
     lower === "subtotaal" ||
     lower === "description" ||
-    lower === "omschrijving"
+    lower === "omschrijving" ||
+    lower === "factureer aan" ||
+    lower === "factuur aan" ||
+    lower === "aan" ||
+    lower === "van" ||
+    lower === "from" ||
+    lower === "to" ||
+    lower === "bill to" ||
+    lower.startsWith("factureer aan") ||
+    lower.startsWith("bill to") ||
+    lower.endsWith(":")
   );
+}
+
+function findLineItemTableStartIndex(lines: string[]): number {
+  const tableKeywords = [
+    "description",
+    "omschrijving",
+    "artikel",
+    "item",
+    "qty",
+    "aantal",
+    "unit price",
+    "eenheidsprijs",
+    "prijs",
+    "price",
+  ];
+  for (let i = 0; i < lines.length; i++) {
+    const lower = lines[i].toLowerCase();
+    let matches = 0;
+    for (const tk of tableKeywords) {
+      if (lower.includes(tk)) matches++;
+    }
+    if (matches >= 2) return i;
+  }
+  return -1;
 }
 
 function parseLineItemsFromLines(
   lines: string[]
 ): Array<{ description: string; quantity: number; unitPrice: number; total: number }> {
+  const tableStart = findLineItemTableStartIndex(lines);
+  const candidateLines = tableStart >= 0 ? lines.slice(tableStart + 1) : lines;
   const items: Array<{
     description: string;
     quantity: number;
@@ -472,15 +542,25 @@ function parseLineItemsFromLines(
     total: number;
   }> = [];
 
-  for (const line of lines) {
-    // Look for pattern: Description ... Quantity ... UnitPrice ... Total
-    const match = line.match(/^(.+?)\s+(\d+)\s+([\d,.]+)\s+([\d,.]+)$/);
+  const stopKeywords = ["subtotaal", "subtotal", "totaal", "total", "btw", "tax", "korting", "discount", "pagina", "page", "bank", "iban"];
+  const ignorePrefixes = ["datum", "date", "factuur", "invoice", "tel:", "e-mail", "van:", "aan:"];
+
+  for (const line of candidateLines) {
+    const lower = line.toLowerCase().trim();
+    if (stopKeywords.some((sk) => lower.startsWith(sk))) {
+      continue;
+    }
+    if (ignorePrefixes.some((ip) => lower.startsWith(ip))) {
+      continue;
+    }
+
+    const match = line.match(/^(.+?)\s*(\d+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)$/);
     if (match) {
       const desc = match[1].trim();
       const qty = parseInt(match[2], 10);
       const price = parseAmount(match[3]);
       const tot = parseAmount(match[4]);
-      if (desc && !isNaN(qty) && !isNaN(price)) {
+      if (desc && !isNaN(qty) && !isNaN(price) && desc.length > 2) {
         items.push({
           description: desc,
           quantity: qty,

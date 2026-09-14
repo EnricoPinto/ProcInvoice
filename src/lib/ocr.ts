@@ -87,6 +87,33 @@ export async function recognizeInvoice(
 
     // 4. Fill in missing fields with AI-extracted fields if available
     if (rawResult.extractedFields) {
+      if (rawResult.extractedFields.classifiedType === "Factuur") {
+        extractedData.classifiedType = "Factuur";
+      }
+
+      if (
+        Array.isArray(rawResult.extractedFields.lineItems) &&
+        rawResult.extractedFields.lineItems.length > 0
+      ) {
+        extractedData.lineItems = rawResult.extractedFields.lineItems;
+      }
+
+      if (rawResult.extractedFields.vendorName) {
+        extractedData.vendorName = rawResult.extractedFields.vendorName;
+      }
+
+      if (rawResult.extractedFields.clientName) {
+        extractedData.clientName = rawResult.extractedFields.clientName;
+      }
+
+      if (rawResult.extractedFields.vendorAddress) {
+        extractedData.vendorAddress = rawResult.extractedFields.vendorAddress;
+      }
+
+      if (rawResult.extractedFields.clientAddress) {
+        extractedData.clientAddress = rawResult.extractedFields.clientAddress;
+      }
+
       for (const [key, val] of Object.entries(rawResult.extractedFields)) {
         const k = key as keyof ExtractedInvoiceData;
         const currentVal = extractedData[k];
@@ -106,4 +133,17 @@ export async function recognizeInvoice(
     console.error("OCR recognition error:", err);
     throw err;
   }
+}
+
+function isSuspiciousName(val: string): boolean {
+  const lower = val.toLowerCase().trim();
+  return (
+    lower.includes("factureer") ||
+    lower.includes("factuur") ||
+    lower.endsWith(":") ||
+    lower === "aan" ||
+    lower === "van" ||
+    lower === "bill to" ||
+    lower.length < 3
+  );
 }

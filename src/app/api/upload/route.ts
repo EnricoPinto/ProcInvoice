@@ -59,9 +59,18 @@ export async function POST(req: NextRequest) {
   if (file.type === "application/pdf") {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse");
-      const pdfData = await pdfParse(buffer);
-      pageCount = pdfData.numpages;
+      const pdfModule = require("pdf-parse");
+      if (typeof pdfModule === "function") {
+        const pdfData = await pdfModule(buffer);
+        pageCount = pdfData.numpages || 1;
+      } else if (pdfModule?.PDFParse) {
+        const parser = new pdfModule.PDFParse({ data: buffer });
+        const textData = await parser.getText();
+        pageCount = textData.total || 1;
+      } else if (typeof pdfModule?.default === "function") {
+        const pdfData = await pdfModule.default(buffer);
+        pageCount = pdfData.numpages || 1;
+      }
     } catch (e) {
       console.error("PDF parse error:", e);
     }

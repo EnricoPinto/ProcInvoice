@@ -255,4 +255,101 @@ async function callGoogleVision(buffer: Buffer, apiKey: string): Promise<RawOCRR
 // Backwards-compatible export
 export const googleVisionOCR = (buffer: Buffer) => cloudImageOCR(buffer, "image/png");
 
+/**
+ * Uses Gemini API to extract structured fields directly from raw text (e.g. from PDF text extraction).
+ */
+export async function callGeminiExtractFromText(
+  text: string
+): Promise<Partial<ExtractedInvoiceData> | null> {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_VISION_API_KEY;
+  if (!apiKey || !text || text.trim().length === 0) return null;
+
+  const prompt = `You are an expert invoice OCR and data extraction system.
+Analyze the following invoice text (extracted from a PDF or scanned document) and extract all structured fields.
+Output a strictly valid JSON object with the following schema (do not wrap in markdown quotes, no extra commentary):
+{
+  "classifiedType": "Factuur or Overige document",
+  "invoiceNumber": "string or null",
+  "invoiceDate": "YYYY-MM-DD or formatted date string or null",
+  "dueDate": "YYYY-MM-DD or formatted date string or null",
+  "vendorName": "string or null",
+  "vendorAddress": "string or null",
+  "vendorVAT": "string or null",
+  "clientName": "string or null",
+  "clientAddress": "string or null",
+  "subtotal": number or null,
+  "taxRate": number or null,
+  "taxAmount": number or null,
+  "totalAmount": number or null,
+  "currency": "EUR, USD, etc. or null",
+  "paymentTerms": "string or null",
+  "bankDetails": "string or null",
+  "notes": "string or null",
+  "lineItems": [
+    {
+      "description": "string",
+      "quantity": number,
+      "unitPrice": number,
+      "total": number
+    }
+  ]
+}
+
+Invoice Text:
+${text}`;
+
+  const models = ["gemini-3.6-flash", "gemini-flash-latest"];
+  for (const model of models) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: "application/json",
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) continue;
+      const json = await response.json();
+      const contentText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!contentText) continue;
+
+      const cleaned = contentText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        classifiedType: parsed.classifiedType || undefined,
+        invoiceNumber: parsed.invoiceNumber || undefined,
+        invoiceDate: parsed.invoiceDate || undefined,
+        dueDate: parsed.dueDate || undefined,
+        vendorName: parsed.vendorName || undefined,
+        vendorAddress: parsed.vendorAddress || undefined,
+        vendorVAT: parsed.vendorVAT || undefined,
+        clientName: parsed.clientName || undefined,
+        clientAddress: parsed.clientAddress || undefined,
+        subtotal: typeof parsed.subtotal === "number" ? parsed.subtotal : undefined,
+        taxRate: typeof parsed.taxRate === "number" ? parsed.taxRate : undefined,
+        taxAmount: typeof parsed.taxAmount === "number" ? parsed.taxAmount : undefined,
+        totalAmount: typeof parsed.totalAmount === "number" ? parsed.totalAmount : undefined,
+        currency: parsed.currency || undefined,
+        paymentTerms: parsed.paymentTerms || undefined,
+        bankDetails: parsed.bankDetails || undefined,
+        notes: parsed.notes || undefined,
+        lineItems: Array.isArray(parsed.lineItems) ? parsed.lineItems : undefined,
+      };
+    } catch {
+      // Continue to next model or return null
+    }
+  }
+
+  return null;
+}
+
 export type { ExtractedInvoiceData };
