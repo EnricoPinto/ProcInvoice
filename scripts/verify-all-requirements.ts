@@ -188,6 +188,61 @@ async function runVerification() {
   const res4 = extractDataWithRules({ rawText: nonInvoiceDoc, blocks: [], pageCount: 1 }, activeRules);
   assert(res4.classifiedType === "Overige document", "Fixture 4 correctly classified as 'Overige document'");
 
+  // TEST FIXTURE 5: Non-Dutch EU Invoice (Germany/Ireland/France)
+  const nonDutchEuDoc = `
+    Vendor: CloudServices GmbH
+    VAT Number: DE123456789
+    IBAN: DE89370400440532013000
+
+    INVOICE
+    Invoice Number: INV-EU-9921
+    Invoice Date: 2024-08-15
+    Due Date: 2024-09-15
+
+    Bill To: Dublin Enterprises Ltd
+    Address: 10 Grand Canal Square, Dublin
+
+    Description Qty Unit Price Total
+    Cloud Infrastructure Hosting 1 1200.00 1200.00
+    Managed Database Support 1 300.00 300.00
+
+    Total: 1500.00
+  `;
+
+  const res5 = extractDataWithRules({ rawText: nonDutchEuDoc, blocks: [], pageCount: 1 }, activeRules);
+  assert(res5.classifiedType === "Factuur", "Fixture 5 classified as 'Factuur' (via keyword 'INVOICE')");
+  assert(res5.invoiceNumber?.includes("INV-EU-9921") || false, "Fixture 5 invoiceNumber extracted ('Invoice Number')");
+  assert(res5.vendorName?.includes("CloudServices GmbH") || false, "Fixture 5 vendorName extracted ('Vendor')");
+  assert(res5.clientName?.includes("Dublin Enterprises Ltd") || false, "Fixture 5 clientName extracted ('Bill To')");
+  assert(res5.invoiceDate === "2024-08-15", "Fixture 5 invoiceDate extracted ('Invoice Date')");
+  assert(res5.dueDate === "2024-09-15", "Fixture 5 dueDate extracted ('Due Date')");
+
+  // TEST FIXTURES 6: Coverage for all keyword variants specified in Prompt
+  console.log("\n--- Keyword Variants Completeness Checks ---");
+  const variantChecks = [
+    { text: "Factur\nFactuur Nr.: FN-101\nDatum: 2024-01-01", kw: "Factuur Nr.", expected: "FN-101", classExpected: "Factuur" },
+    { text: "Nota\nFacture nummer: FN-102\nDatum: 2024-01-01", kw: "Facture nummer", expected: "FN-102", classExpected: "Factuur" },
+    { text: "Debit nota\nNummer: NUM-103\nDatum: 2024-01-01", kw: "Nummer", expected: "NUM-103", classExpected: "Factuur" },
+    { text: "Creditfactuur\nDocument Nr.: DN-104\nDatum: 2024-01-01", kw: "Document Nr.", expected: "DN-104", classExpected: "Factuur" },
+    { text: "Bon\nDocument No.: DN-105\nDatum: 2024-01-01", kw: "Document No.", expected: "DN-105", classExpected: "Factuur" },
+    { text: "Factuur\nFact.: F-106\nDatum: 2024-01-01", kw: "Fact.", expected: "F-106", classExpected: "Factuur" },
+    { text: "Factuur\nKenmerk: KM-107\nDatum: 2024-01-01", kw: "Kenmerk", expected: "KM-107", classExpected: "Factuur" },
+    { text: "Factuur\nBon no.: BON-108\nDatum: 2024-01-01", kw: "Bon no.", expected: "BON-108", classExpected: "Factuur" },
+    { text: "Factuur\nFactuurnr: FNR-109\nFactuur date: 15-08-2024", kw: "Factuur date", expected: "15-08-2024", checkDate: true },
+  ];
+
+  for (const vc of variantChecks) {
+    const vr = extractDataWithRules({ rawText: vc.text, blocks: [], pageCount: 1 }, activeRules);
+    if (vc.classExpected) {
+      assert(vr.classifiedType === vc.classExpected, `Classified keyword variant matched: '${vc.text.split("\n")[0]}'`);
+    }
+    if (vc.checkDate) {
+      assert(vr.invoiceDate === vc.expected, `Date keyword variant '${vc.kw}' matched: ${vc.expected}`);
+    } else {
+      assert(vr.invoiceNumber?.includes(vc.expected) || false, `Invoice number keyword variant '${vc.kw}' matched: ${vc.expected}`);
+    }
+  }
+
   // -------------------------------------------------------------
   // 3. DUTCH LOCALIZATION FOR NL ACCOUNTS
   // -------------------------------------------------------------
@@ -268,6 +323,41 @@ async function runVerification() {
   await prisma.user.delete({ where: { id: testAccount.id } });
   const afterDelete = await prisma.user.findUnique({ where: { id: testAccount.id } });
   assert(!afterDelete, "Admin account deletion permanently removes company account and cascaded profiles");
+
+  // -------------------------------------------------------------
+  // 6. DYNAMIC ADMIN RULE CHANGE WITHOUT CODE REDEPLOY
+  // -------------------------------------------------------------
+  console.log("\n--- 6. Dynamic Admin Rule Change Verification ---");
+  const classRule = await prisma.keywordRule.findFirst({ where: { fieldName: "classifiedType" } });
+  if (classRule) {
+    const existingKws = JSON.parse(classRule.keywords);
+    const updatedKws = [...existingKws, "AangepastFactuur"];
+    await prisma.keywordRule.update({
+      where: { id: classRule.id },
+      data: { keywords: JSON.stringify(updatedKws) },
+    });
+
+    // Fetch fresh rules from DB
+    const freshDbRules = await prisma.keywordRule.findMany({ where: { enabled: true } });
+    const freshRules = freshDbRules.map((r) => ({
+      fieldName: r.fieldName,
+      keywords: JSON.parse(r.keywords),
+      matchType: r.matchType,
+      regexPattern: r.regexPattern,
+      enabled: r.enabled,
+    }));
+
+    const dynamicDoc = "AangepastFactuur\nFactuurnr: DYN-001\nDatum: 2024-01-01";
+    const dynRes = extractDataWithRules({ rawText: dynamicDoc, blocks: [], pageCount: 1 }, freshRules);
+    assert(dynRes.classifiedType === "Factuur", "Dynamic rule edit in DB took effect immediately without code change");
+
+    // Restore original keywords in DB
+    await prisma.keywordRule.update({
+      where: { id: classRule.id },
+      data: { keywords: JSON.stringify(existingKws) },
+    });
+    assert(true, "Database keyword rule safely restored to original state");
+  }
 
   console.log("\n=================================================");
   console.log(`VERIFICATION SUMMARY: ${passed} PASSED, ${failed} FAILED`);

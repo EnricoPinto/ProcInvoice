@@ -23,6 +23,7 @@ export const DEFAULT_KEYWORD_RULES: KeywordRuleInput[] = [
       "Debit nota",
       "Creditfactuur",
       "Bon",
+      "Invoice",
     ],
     matchType: "FUZZY",
     priority: 100,
@@ -240,6 +241,7 @@ export function detectClassifiedType(
     "Debit nota",
     "Creditfactuur",
     "Bon",
+    "Invoice",
   ];
 
   if (classifiedRule && classifiedRule.keywords) {
