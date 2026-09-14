@@ -558,3 +558,38 @@ select.form-input option { background: #1e293b; color: var(--text-primary); }
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-left: 0; padding: 1rem; }
 }
+
+/* ─── Review Screen Split View (Desktop Side-by-Side, Mobile Stacked) ─── */
+.invoice-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+.invoice-pdf-pane {
+  position: sticky;
+  top: 1rem;
+  height: calc(100vh - 6rem);
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+.invoice-pdf-frame {
+  width: 100%;
+  flex: 1;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.25);
+}
+@media (max-width: 1024px) {
+  .invoice-split-layout {
+    grid-template-columns: 1fr;
+  }
+  .invoice-pdf-pane {
+    position: static;
+    height: 450px;
+    min-height: 360px;
+    margin-bottom: 1.5rem;
+  }
+}
+

@@ -28,12 +28,12 @@ export async function GET(req: NextRequest) {
   if (company) {
     decryptedCompany = {
       ...company,
-      vatNumber: decrypt(company.vatNumber),
-      iban: decrypt(company.iban),
-      address: decrypt(company.address),
-      companyEmail: decrypt(company.companyEmail),
-      contactName: decrypt(company.contactName),
-      contactDesignation: decrypt(company.contactDesignation),
+      vatNumber: company.vatNumber ? decrypt(company.vatNumber) : null,
+      iban: company.iban ? decrypt(company.iban) : null,
+      address: company.address ? decrypt(company.address) : null,
+      companyEmail: company.companyEmail ? decrypt(company.companyEmail) : null,
+      contactName: company.contactName ? decrypt(company.contactName) : "",
+      contactDesignation: company.contactDesignation ? decrypt(company.contactDesignation) : null,
     };
   }
 

@@ -7,7 +7,6 @@ import { encryptJson } from "@/lib/encryption";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
-import { tmpdir } from "os";
 
 export const maxDuration = 60;
 
@@ -102,7 +101,7 @@ export async function POST(req: NextRequest) {
   try {
     const isVercel = Boolean(process.env.VERCEL);
     const baseUploadDir = isVercel
-      ? path.join(tmpdir(), "uploads")
+      ? path.join(require("os").tmpdir(), "uploads")
       : path.join(process.cwd(), "uploads");
     const uploadDir = path.join(baseUploadDir, authed.userId);
     if (!existsSync(uploadDir)) {

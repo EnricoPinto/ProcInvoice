@@ -9,6 +9,8 @@ import {
   Clock,
   XCircle,
   Download,
+  ExternalLink,
+  Eye,
 } from "lucide-react";
 import { formatDate, formatFileSize } from "@/lib/utils";
 import type { ExtractedInvoiceData } from "@/lib/ocr";
@@ -21,23 +23,45 @@ export default async function InvoiceDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await auth();
+  if (!session?.user?.id) notFound();
+
   const { id } = await params;
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id, userId: session!.user.id },
+    where: {
+      id,
+      ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id }),
+    },
   });
 
   if (!invoice) notFound();
 
+  // Get user country for Dutch/English localization
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { country: true },
+  });
+  const accountCountry = user?.country || "NL";
+
   const rawData = invoice.extractedData;
-  const data = (typeof rawData === "string"
-    ? decryptJson(rawData)
-    : rawData) as ExtractedInvoiceData | null;
+  let data: ExtractedInvoiceData | null = null;
+  if (rawData) {
+    try {
+      data = (typeof rawData === "string"
+        ? decryptJson(rawData)
+        : rawData) as ExtractedInvoiceData | null;
+    } catch (err) {
+      console.error("Failed to decrypt invoice data:", err);
+      data = null;
+    }
+  }
+
+  const filePreviewUrl = `/api/invoices/${invoice.id}/file`;
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in" style={{ paddingBottom: "2rem" }}>
       {/* Header */}
-      <div style={{ marginBottom: "2rem" }}>
+      <div style={{ marginBottom: "1.5rem" }}>
         <Link
           href="/invoices"
           style={{
@@ -47,37 +71,67 @@ export default async function InvoiceDetailPage({
             color: "var(--text-secondary)",
             textDecoration: "none",
             fontSize: "0.875rem",
-            marginBottom: "1rem",
+            marginBottom: "0.75rem",
           }}
         >
           <ArrowLeft size={16} /> Back to Invoices
         </Link>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            flexWrap: "wrap",
+            gap: "1rem",
+          }}
+        >
           <div>
-            <h1 className="page-title" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <FileText size={28} style={{ color: "var(--secondary)" }} />
+            <h1
+              className="page-title"
+              style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "1.5rem" }}
+            >
+              <FileText size={26} style={{ color: "var(--secondary)" }} />
               {invoice.fileName}
             </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+                marginTop: "0.4rem",
+                flexWrap: "wrap",
+              }}
+            >
               <StatusChip status={invoice.status} />
-              <span style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                 {formatDate(invoice.createdAt)}
               </span>
-              <span style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                 {formatFileSize(invoice.fileSize)}
               </span>
-              <span style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                 {invoice.pageCount} {invoice.pageCount === 1 ? "page" : "pages"}
               </span>
             </div>
           </div>
-          <a
-            href={`/api/invoices/${invoice.id}/download`}
-            download
-            className="btn btn-secondary"
-          >
-            <Download size={16} /> Download Original
-          </a>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <a
+              href={filePreviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-ghost btn-sm"
+              title="Open document in new tab"
+            >
+              <ExternalLink size={15} /> Open Document
+            </a>
+            <a
+              href={filePreviewUrl}
+              download={invoice.fileName}
+              className="btn btn-secondary btn-sm"
+            >
+              <Download size={15} /> Download Original
+            </a>
+          </div>
         </div>
       </div>
 
@@ -94,9 +148,90 @@ export default async function InvoiceDetailPage({
         </div>
       ) : null}
 
-      {/* Extracted Data */}
+      {/* Review Screen — Desktop: Left PDF Viewer / Right Form; Mobile: Top PDF / Bottom Form */}
       {data && invoice.status === "PROCESSED" && (
-        <EditableResults invoiceId={invoice.id} initialData={data} />
+        <div className="invoice-split-layout">
+          {/* LEFT / TOP: Document Viewer (PDF or Image) */}
+          <div className="invoice-pdf-pane glass-card" style={{ padding: "0.75rem" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "0.4rem 0.6rem 0.6rem",
+                borderBottom: "1px solid var(--border)",
+                marginBottom: "0.5rem",
+              }}
+            >
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: "0.8125rem",
+                  fontWeight: 700,
+                  color: "var(--text-secondary)",
+                }}
+              >
+                <Eye size={15} style={{ color: "var(--secondary)" }} />
+                Source Document
+              </span>
+              <a
+                href={filePreviewUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--secondary)",
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontWeight: 600,
+                }}
+              >
+                Full Screen <ExternalLink size={12} />
+              </a>
+            </div>
+
+            {invoice.mimeType === "application/pdf" ? (
+              <iframe
+                src={`${filePreviewUrl}#toolbar=1&navpanes=0`}
+                title="Invoice PDF"
+                className="invoice-pdf-frame"
+              />
+            ) : (
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "auto",
+                  background: "rgba(0,0,0,0.3)",
+                  borderRadius: "var(--radius-lg)",
+                  padding: "1rem",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={filePreviewUrl}
+                  alt={invoice.fileName}
+                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT / BELOW: Extracted & Editable Form */}
+          <div style={{ minWidth: 0 }}>
+            <EditableResults
+              invoiceId={invoice.id}
+              initialData={data}
+              accountCountry={accountCountry}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -110,5 +245,9 @@ function StatusChip({ status }: { status: string }) {
     FAILED: { cls: "badge-failed", icon: <XCircle size={12} />, label: "Failed" },
   };
   const s = map[status] || map.PENDING;
-  return <span className={`badge ${s.cls}`}>{s.icon} {s.label}</span>;
+  return (
+    <span className={`badge ${s.cls}`}>
+      {s.icon} {s.label}
+    </span>
+  );
 }

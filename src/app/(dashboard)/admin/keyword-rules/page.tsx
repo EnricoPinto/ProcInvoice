@@ -34,6 +34,10 @@ export default function KeywordRulesPage() {
   const [testText, setTestText] = useState("");
   const [testResult, setTestResult] = useState<Record<string, string> | null>(null);
 
+  useEffect(() => {
+    fetchRules();
+  }, []);
+
   const fetchRules = async () => {
     setLoading(true);
     try {
@@ -46,24 +50,6 @@ export default function KeywordRulesPage() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    let ignore = false;
-    fetch("/api/admin/keyword-rules")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!ignore && data.rules) setRules(data.rules);
-      })
-      .catch(() => {
-        if (!ignore) setError("Failed to load keyword rules");
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, []);
 
   const handleOpenNew = () => {
     setEditingId(null);
@@ -408,6 +394,7 @@ export default function KeywordRulesPage() {
                   value={fieldName}
                   onChange={(e) => setFieldName(e.target.value)}
                 >
+                  <option value="classifiedType">classifiedType (Document Classification)</option>
                   <option value="invoiceNumber">invoiceNumber</option>
                   <option value="invoiceDate">invoiceDate</option>
                   <option value="dueDate">dueDate</option>

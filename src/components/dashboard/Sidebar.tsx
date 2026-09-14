@@ -12,6 +12,8 @@ import {
   User,
   Sliders,
   ShieldCheck,
+  CheckSquare,
+  Users,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -33,11 +35,14 @@ const navItems = [
 
 const adminItems = [
   { href: "/admin/keyword-rules", label: "Keyword Rules", icon: Sliders },
+  { href: "/admin/validation-rules", label: "Validation Rules", icon: CheckSquare },
+  { href: "/admin/accounts", label: "Accounts", icon: Users },
   { href: "/admin/security", label: "Security & Audit", icon: ShieldCheck },
 ];
 
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  const isAdmin = user.role === "ADMIN";
 
   return (
     <aside className="sidebar">
@@ -61,9 +66,11 @@ export function Sidebar({ user }: SidebarProps) {
           </Link>
         ))}
 
-        {user.role === "ADMIN" && (
+        {isAdmin && (
           <>
-            <p className="nav-section-label" style={{ marginTop: "1.5rem" }}>Admin Controls</p>
+            <p className="nav-section-label" style={{ marginTop: "1.5rem" }}>
+              Admin Controls
+            </p>
             {adminItems.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}

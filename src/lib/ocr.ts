@@ -3,6 +3,7 @@ import { CloudOCREngine, type OCREngine, type RawOCRResult } from "./tesseract-e
 import { extractDataWithRules, DEFAULT_KEYWORD_RULES, type KeywordRuleInput } from "./keyword-extractor";
 
 export interface ExtractedInvoiceData {
+  classifiedType?: "Factuur" | "Overige document" | string;
   invoiceNumber?: string;
   invoiceDate?: string;
   dueDate?: string;

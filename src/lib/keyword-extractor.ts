@@ -13,29 +13,86 @@ export interface KeywordRuleInput {
 
 export const DEFAULT_KEYWORD_RULES: KeywordRuleInput[] = [
   {
-    fieldName: "invoiceNumber",
-    keywords: ["Invoice No", "Invoice Number", "Factuurnummer", "Factuurnr", "Invoice #", "Inv No", "Factuur nr"],
+    fieldName: "classifiedType",
+    keywords: [
+      "Factuur",
+      "Factur",
+      "Rekening",
+      "Credit nota",
+      "Nota",
+      "Debit nota",
+      "Creditfactuur",
+      "Bon",
+    ],
     matchType: "FUZZY",
-    regexPattern: "(?:Invoice|Factuur)?(?:\\s*(?:No|Number|nr|#))?[:.]?\\s*([A-Za-z0-9-_/]+)",
+    priority: 100,
+  },
+  {
+    fieldName: "invoiceNumber",
+    keywords: [
+      "Factuurnummer",
+      "Factuur no.",
+      "Factuur Nr.",
+      "Facture nummer",
+      "Nummer",
+      "No.",
+      "Document number",
+      "Document Nr.",
+      "Document No.",
+      "Fact.",
+      "Kenmerk",
+      "Bon no.",
+      "Invoice No",
+      "Invoice Number",
+      "Factuurnr",
+      "Invoice #",
+      "Inv No",
+      "Factuur nr",
+    ],
+    matchType: "FUZZY",
+    regexPattern: "(?:Invoice|Factuur|Facture|Document|Bon)?(?:\\s*(?:No|Number|nr|#|nummer))?[:.]?\\s*([A-Za-z0-9-_/]+)",
     priority: 10,
   },
   {
     fieldName: "invoiceDate",
-    keywords: ["Invoice Date", "Factuurdatum", "Date of Issue", "Factuur datum", "Date"],
+    keywords: [
+      "Datum",
+      "Factuur Datum",
+      "Facture date",
+      "Factuur date",
+      "Invoice date",
+      "Factuurdatum",
+      "Date of Issue",
+      "Date",
+    ],
     matchType: "FUZZY",
     regexPattern: "(?:\\d{4}[-/.]\\d{2}[-/.]\\d{2}|\\d{2}[-/.]\\d{2}[-/.]\\d{4})",
     priority: 9,
   },
   {
     fieldName: "dueDate",
-    keywords: ["Due Date", "Vervaldatum", "Payment Due", "Betaaltermijn", "Verval datum"],
+    keywords: [
+      "Vervaldatum",
+      "Due Date",
+      "Payment Due",
+      "Betaaltermijn",
+      "Verval datum",
+      "Betaal vóór",
+    ],
     matchType: "FUZZY",
     regexPattern: "(?:\\d{4}[-/.]\\d{2}[-/.]\\d{2}|\\d{2}[-/.]\\d{2}[-/.]\\d{4})",
     priority: 8,
   },
   {
     fieldName: "vendorName",
-    keywords: ["Vendor", "Leverancier", "Company Name", "From", "Van", "Verkoper"],
+    keywords: [
+      "Leverancier",
+      "Van",
+      "Vendor",
+      "Company Name",
+      "From",
+      "Verkoper",
+    ],
     matchType: "FUZZY",
     priority: 7,
   },
@@ -47,20 +104,37 @@ export const DEFAULT_KEYWORD_RULES: KeywordRuleInput[] = [
   },
   {
     fieldName: "vendorVAT",
-    keywords: ["VAT Number", "VAT No", "BTW-nummer", "BTW nr", "BTW Id", "BTW-IdNummer", "Ust-IdNr"],
+    keywords: [
+      "VAT Number",
+      "VAT No",
+      "BTW-nummer",
+      "BTW nr",
+      "BTW Id",
+      "BTW-IdNummer",
+      "Ust-IdNr",
+      "Btw-nummer",
+      "Btw-id",
+    ],
     matchType: "FUZZY",
     regexPattern: "(NL\\d{9}B\\d{2}|[A-Z]{2}[A-Z0-9]{2,12})",
     priority: 10,
   },
   {
     fieldName: "clientName",
-    keywords: ["Bill To", "Client", "Klant", "Aan", "Factuuradres", "Customer"],
+    keywords: [
+      "Aan",
+      "Debtor",
+      "Klant",
+      "Bill To",
+      "Client",
+      "Customer",
+    ],
     matchType: "FUZZY",
     priority: 5,
   },
   {
     fieldName: "clientAddress",
-    keywords: ["Client Address", "Klantadres", "Billing Address", "Afleveradres"],
+    keywords: ["Factuuradres", "Client Address", "Klantadres", "Billing Address", "Afleveradres"],
     matchType: "FUZZY",
     priority: 4,
   },
@@ -100,13 +174,19 @@ export function extractDataWithRules(
 ): ExtractedInvoiceData {
   const text = ocrResult.rawText || "";
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const result: ExtractedInvoiceData = {};
+  const result: ExtractedInvoiceData = {
+    lineItems: [],
+  };
 
   // Sort rules by priority descending
   const sortedRules = [...rules].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
+  // 1. Detect classifiedType from OCR text region ABOVE the line-items table
+  result.classifiedType = detectClassifiedType(lines, text, sortedRules);
+
+  // 2. Extract standard fields
   for (const rule of sortedRules) {
-    if (rule.enabled === false) continue;
+    if (rule.enabled === false || rule.fieldName === "classifiedType") continue;
     const extractedValue = extractSingleField(lines, text, rule);
     if (extractedValue) {
       assignFieldToResult(result, rule.fieldName, extractedValue);
@@ -124,7 +204,7 @@ export function extractDataWithRules(
     if (ibanMatch) result.bankDetails = `IBAN: ${ibanMatch[1]}`;
   }
 
-  // Parse line items if present
+  // Parse line items if not already populated
   if (!result.lineItems || result.lineItems.length === 0) {
     result.lineItems = parseLineItemsFromLines(lines);
   }
@@ -138,56 +218,173 @@ export function extractDataWithRules(
   return result;
 }
 
-function extractSingleField(lines: string[], fullText: string, rule: KeywordRuleInput): string | null {
-  for (const kw of rule.keywords) {
-    if (!kw) continue;
-    const lowerKw = kw.toLowerCase();
+/**
+ * Detects whether the document is "Factuur" or "Overige document"
+ * by scanning the OCR text region ABOVE the line-items table
+ * for keywords defined in the classifiedType rule.
+ */
+export function detectClassifiedType(
+  lines: string[],
+  fullText: string,
+  rules: KeywordRuleInput[]
+): "Factuur" | "Overige document" {
+  const classifiedRule =
+    rules.find((r) => r.fieldName === "classifiedType") || DEFAULT_KEYWORD_RULES[0];
+
+  let keywords: string[] = [
+    "Factuur",
+    "Factur",
+    "Rekening",
+    "Credit nota",
+    "Nota",
+    "Debit nota",
+    "Creditfactuur",
+    "Bon",
+  ];
+
+  if (classifiedRule && classifiedRule.keywords) {
+    if (Array.isArray(classifiedRule.keywords)) {
+      keywords = classifiedRule.keywords;
+    } else {
+      try {
+        keywords = JSON.parse(classifiedRule.keywords as unknown as string);
+      } catch {
+        keywords = (classifiedRule.keywords as unknown as string)
+          .split(",")
+          .map((s) => s.trim());
+      }
+    }
+  }
+
+  // Find line items table header line
+  const tableKeywords = [
+    "description",
+    "omschrijving",
+    "artikel",
+    "item",
+    "qty",
+    "aantal",
+    "unit price",
+    "eenheidsprijs",
+    "prijs",
+    "price",
+  ];
+
+  let tableIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const lowerLine = lines[i].toLowerCase();
+    let matches = 0;
+    for (const tk of tableKeywords) {
+      if (lowerLine.includes(tk)) matches++;
+    }
+    if (matches >= 2) {
+      tableIndex = i;
+      break;
+    }
+  }
+
+  // If table header found, consider text above it; otherwise use full text
+  const regionAboveTable =
+    tableIndex > 0 ? lines.slice(0, tableIndex).join("\n") : fullText;
+
+  for (const kw of keywords) {
+    if (!kw || kw.trim().length === 0) continue;
+    const escaped = escapeRegex(kw.trim());
+    const regex = new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, "i");
+    if (regex.test(regionAboveTable)) {
+      return "Factuur";
+    }
+  }
+
+  return "Overige document";
+}
+
+function extractSingleField(
+  lines: string[],
+  fullText: string,
+  rule: KeywordRuleInput
+): string | null {
+  // Sort keywords by length descending so longer phrases match first
+  const sortedKeywords = [...rule.keywords]
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0)
+    .sort((a, b) => b.length - a.length);
+
+  for (const kw of sortedKeywords) {
+    const escapedKw = escapeRegex(kw);
+    // Match keyword with boundary
+    const kwRegex = new RegExp(`(?:^|[^a-zA-Z0-9])(${escapedKw})(?:[:\\s#.-]|$)`, "i");
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const lowerLine = line.toLowerCase();
+      const match = kwRegex.exec(line);
 
-      if (lowerLine.includes(lowerKw)) {
-        // Try extracting value after keyword on same line
-        const idx = lowerLine.indexOf(lowerKw);
-        const afterKw = line.substring(idx + kw.length).replace(/^[:\s-]+/, "").trim();
+      if (match) {
+        const kwIndex = line.toLowerCase().indexOf(kw.toLowerCase(), match.index);
+        if (kwIndex === -1) continue;
 
-        if (afterKw && afterKw.length > 0) {
+        const afterKw = line.substring(kwIndex + kw.length).replace(/^[:\s#.-]+/, "").trim();
+
+        // 1. Value after keyword on the same line
+        if (afterKw.length > 0 && !isHeaderLine(afterKw)) {
           if (rule.regexPattern) {
-            const re = new RegExp(rule.regexPattern, "i");
-            const match = afterKw.match(re) || fullText.match(re);
-            if (match) return match[1] || match[0];
+            try {
+              const reg = new RegExp(rule.regexPattern, "i");
+              const m = afterKw.match(reg);
+              if (m && (m[1] || m[0])) return (m[1] || m[0]).trim();
+            } catch {
+              // fallback
+            }
           }
           return afterKw;
         }
 
-        // Check next line for value if same line was just the label
+        // 2. Value on next line if same line was empty
         if (i + 1 < lines.length) {
           const nextLine = lines[i + 1].trim();
-          if (nextLine && !isHeaderLine(nextLine)) {
+          if (nextLine.length > 0 && !isHeaderLine(nextLine)) {
+            if (rule.regexPattern) {
+              try {
+                const reg = new RegExp(rule.regexPattern, "i");
+                const m = nextLine.match(reg);
+                if (m && (m[1] || m[0])) return (m[1] || m[0]).trim();
+              } catch {
+                // fallback
+              }
+            }
             return nextLine;
           }
         }
       }
     }
+  }
 
-    // Direct regex pattern match on full text if rule provides a pattern
-    if (rule.regexPattern) {
-      try {
-        const re = new RegExp(rule.regexPattern, "i");
-        const m = fullText.match(re);
-        if (m) return m[1] || m[0];
-      } catch {
-        // invalid regex pattern ignored
+  // Fallback: search full text with regex pattern if provided
+  if (rule.regexPattern) {
+    try {
+      const regex = new RegExp(rule.regexPattern, "i");
+      const match = fullText.match(regex);
+      const val = match && (match[1] || match[0]) ? (match[1] || match[0]).trim() : null;
+      if (val && !isHeaderLine(val)) {
+        if (rule.fieldName === "vendorVAT" && (!/\d/.test(val) || val.length < 8)) {
+          return null;
+        }
+        return val;
       }
+    } catch {
+      // ignore
     }
   }
 
   return null;
 }
 
-function assignFieldToResult(target: ExtractedInvoiceData, fieldName: string, value: string) {
-  const cleanVal = value.trim();
+function assignFieldToResult(
+  target: ExtractedInvoiceData,
+  fieldName: string,
+  val: string
+) {
+  const cleanVal = val.trim();
   if (!cleanVal) return;
 
   switch (fieldName) {
@@ -207,7 +404,9 @@ function assignFieldToResult(target: ExtractedInvoiceData, fieldName: string, va
       target.vendorAddress = target.vendorAddress || cleanVal;
       break;
     case "vendorVAT":
-      target.vendorVAT = target.vendorVAT || cleanVal.toUpperCase();
+      if (/\d/.test(cleanVal) && cleanVal.length >= 8) {
+        target.vendorVAT = target.vendorVAT || cleanVal.toUpperCase();
+      }
       break;
     case "clientName":
       target.clientName = target.clientName || cleanVal;
@@ -217,7 +416,9 @@ function assignFieldToResult(target: ExtractedInvoiceData, fieldName: string, va
       break;
     case "iban":
     case "bankDetails":
-      target.bankDetails = target.bankDetails || (cleanVal.startsWith("IBAN") ? cleanVal : `IBAN: ${cleanVal}`);
+      target.bankDetails =
+        target.bankDetails ||
+        (cleanVal.startsWith("IBAN") ? cleanVal : `IBAN: ${cleanVal}`);
       break;
     case "subtotal":
       target.subtotal = target.subtotal || parseAmount(cleanVal);
@@ -247,17 +448,27 @@ function parseAmount(str: string): number {
 }
 
 function isHeaderLine(line: string): boolean {
-  const lower = line.toLowerCase();
+  const lower = line.toLowerCase().trim();
   return (
-    lower.includes("invoice") ||
-    lower.includes("factuur") ||
-    lower.includes("total") ||
-    lower.includes("totaal")
+    lower === "invoice" ||
+    lower === "factuur" ||
+    lower === "total" ||
+    lower === "totaal" ||
+    lower === "subtotaal" ||
+    lower === "description" ||
+    lower === "omschrijving"
   );
 }
 
-function parseLineItemsFromLines(lines: string[]): Array<{ description: string; quantity: number; unitPrice: number; total: number }> {
-  const items: Array<{ description: string; quantity: number; unitPrice: number; total: number }> = [];
+function parseLineItemsFromLines(
+  lines: string[]
+): Array<{ description: string; quantity: number; unitPrice: number; total: number }> {
+  const items: Array<{
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }> = [];
 
   for (const line of lines) {
     // Look for pattern: Description ... Quantity ... UnitPrice ... Total
@@ -268,10 +479,19 @@ function parseLineItemsFromLines(lines: string[]): Array<{ description: string; 
       const price = parseAmount(match[3]);
       const tot = parseAmount(match[4]);
       if (desc && !isNaN(qty) && !isNaN(price)) {
-        items.push({ description: desc, quantity: qty, unitPrice: price, total: tot });
+        items.push({
+          description: desc,
+          quantity: qty,
+          unitPrice: price,
+          total: tot,
+        });
       }
     }
   }
 
   return items;
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

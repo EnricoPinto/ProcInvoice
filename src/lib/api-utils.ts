@@ -35,25 +35,32 @@ export function rateLimitResponse(): NextResponse {
   );
 }
 
-/** Require an authenticated session — returns user id, accountType, and role or null */
+/** Require an authenticated session — returns user id or null */
 export async function requireAuth(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _req?: NextRequest
-): Promise<{ userId: string; accountType: string; role: string } | null> {
+  req?: NextRequest
+): Promise<{ userId: string; accountType: string } | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
   return {
     userId: session.user.id,
-    accountType: (session.user.accountType as string) || "INDIVIDUAL",
-    role: (session.user.role as string) || "USER",
+    accountType: session.user.accountType as string,
   };
 }
 
-/** Require an admin session — returns user or null */
+/** Require an authenticated admin session — returns user id or null */
 export async function requireAdmin(
   req?: NextRequest
-): Promise<{ userId: string; accountType: string; role: string } | null> {
-  const authed = await requireAuth(req);
-  if (!authed || authed.role !== "ADMIN") return null;
-  return authed;
+): Promise<{ userId: string; role: string } | null> {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  const { prisma } = await import("@/lib/prisma");
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, role: true },
+  });
+  if (!user || user.role !== "ADMIN") return null;
+  return {
+    userId: user.id,
+    role: user.role,
+  };
 }

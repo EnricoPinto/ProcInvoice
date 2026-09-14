@@ -6,34 +6,43 @@ import { encrypt } from "@/lib/encryption";
 import { rateLimit, rateLimitResponse } from "@/lib/api-utils";
 import { validateVatNumber, validateKvkNumber, validateIbanNumber } from "@/lib/compliance";
 
-const baseSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  accountType: z.enum(["COMPANY", "INDIVIDUAL"]),
-  country: z.string().default("NL"),
-  termsAccepted: z.boolean().refine((v) => v === true, { message: "Must accept Terms of Service" }),
-  privacyAccepted: z.boolean().refine((v) => v === true, { message: "Must accept Privacy Policy & GDPR terms" }),
-});
+const registerSchema = z
+  .object({
+    contactName: z.string().min(2, "Contact person name is required"),
+    country: z.string().min(2, "Country is required").default("NL"),
+    businessType: z.string().min(1, "Please select a business type"),
+    email: z.string().email("Enter a valid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    termsAccepted: z
+      .boolean()
+      .refine((v) => v === true, { message: "Must accept Terms of Service" }),
+    privacyAccepted: z
+      .boolean()
+      .refine((v) => v === true, {
+        message: "Must accept Privacy Policy & GDPR terms",
+      }),
 
-const companySchema = baseSchema.extend({
-  accountType: z.literal("COMPANY"),
-  companyName: z.string().min(2),
-  coc: z.string().min(3),
-  businessType: z.string().min(1),
-  vatNumber: z.string().min(3),
-  iban: z.string().min(5),
-  address: z.string().min(5),
-  companyEmail: z.string().email(),
-  contactName: z.string().min(2),
-  contactDesignation: z.string().min(1),
-});
+    // Conditional: At least ONE of coc (KVK/COC) or vatNumber is required
+    coc: z.string().optional().nullable(),
+    vatNumber: z.string().optional().nullable(),
 
-const individualSchema = baseSchema.extend({
-  accountType: z.literal("INDIVIDUAL"),
-  fullName: z.string().min(2),
-  address: z.string().min(5),
-  iban: z.string().optional(),
-});
+    // Optional fields
+    companyName: z.string().optional().nullable(),
+    iban: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    companyEmail: z.string().optional().nullable(),
+    contactDesignation: z.string().optional().nullable(),
+    accountType: z.string().optional().default("COMPANY"),
+  })
+  .refine(
+    (d) =>
+      (typeof d.coc === "string" && d.coc.trim().length > 0) ||
+      (typeof d.vatNumber === "string" && d.vatNumber.trim().length > 0),
+    {
+      message: "At least one of KVK/COC number OR VAT number is required",
+      path: ["coc"],
+    }
+  );
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for") || "unknown";
@@ -60,19 +69,27 @@ export async function POST(req: NextRequest) {
     if (typeof b.iban === "string" && b.iban.trim() === "") {
       delete b.iban;
     }
+    if (typeof b.coc === "string" && b.coc.trim() === "") {
+      delete b.coc;
+    }
+    if (typeof b.vatNumber === "string" && b.vatNumber.trim() === "") {
+      delete b.vatNumber;
+    }
+    if (typeof b.companyEmail === "string" && b.companyEmail.trim() === "") {
+      delete b.companyEmail;
+    }
   }
 
-  const accountType = (body as Record<string, unknown>)?.accountType;
-  const schema = accountType === "COMPANY" ? companySchema : individualSchema;
-  const parsed = schema.safeParse(body);
+  const parsed = registerSchema.safeParse(body);
 
   if (!parsed.success) {
     const flattened = parsed.error.flatten();
     const fieldErrors = flattened.fieldErrors as Record<string, string[] | undefined>;
     const firstField = Object.keys(fieldErrors)[0];
-    const firstMsg = firstField && fieldErrors[firstField]?.[0]
-      ? fieldErrors[firstField]![0]
-      : "Validation failed";
+    const firstMsg =
+      firstField && fieldErrors[firstField]?.[0]
+        ? fieldErrors[firstField]![0]
+        : "Validation failed";
 
     return NextResponse.json(
       { error: firstMsg, details: flattened },
@@ -82,38 +99,32 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
 
-  // Format validation for NL & EU market compliance
-  if (data.accountType === "COMPANY") {
-    const cData = data as z.infer<typeof companySchema>;
-
-    const vatCheck = validateVatNumber(cData.vatNumber, cData.country);
+  // Format validation for provided compliance fields
+  if (data.vatNumber && data.vatNumber.trim().length > 0) {
+    const vatCheck = validateVatNumber(data.vatNumber.trim(), data.country);
     if (!vatCheck.valid) {
       return NextResponse.json({ error: vatCheck.error }, { status: 400 });
     }
+  }
 
-    const cocCheck = validateKvkNumber(cData.coc, cData.country);
+  if (data.coc && data.coc.trim().length > 0) {
+    const cocCheck = validateKvkNumber(data.coc.trim(), data.country);
     if (!cocCheck.valid) {
       return NextResponse.json({ error: cocCheck.error }, { status: 400 });
     }
+  }
 
-    const ibanCheck = validateIbanNumber(cData.iban);
+  if (data.iban && data.iban.trim().length > 0) {
+    const ibanCheck = validateIbanNumber(data.iban.trim());
     if (!ibanCheck.valid) {
       return NextResponse.json({ error: ibanCheck.error }, { status: 400 });
-    }
-  } else {
-    const iData = data as z.infer<typeof individualSchema>;
-    if (iData.iban) {
-      const ibanCheck = validateIbanNumber(iData.iban);
-      if (!ibanCheck.valid) {
-        return NextResponse.json({ error: ibanCheck.error }, { status: 400 });
-      }
     }
   }
 
   try {
     // Check existing user
     const existing = await prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email: data.email.toLowerCase().trim() },
     });
     if (existing) {
       return NextResponse.json(
@@ -127,9 +138,9 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email: data.email,
+          email: data.email.toLowerCase().trim(),
           passwordHash,
-          accountType: data.accountType,
+          accountType: "COMPANY",
           country: data.country || "NL",
           lastLoginAt: new Date(),
         },
@@ -139,39 +150,30 @@ export async function POST(req: NextRequest) {
         data: { userId: user.id },
       });
 
-      if (data.accountType === "COMPANY") {
-        const companyData = data as z.infer<typeof companySchema>;
-        await tx.companyProfile.create({
-          data: {
-            userId: user.id,
-            companyName: companyData.companyName,
-            coc: companyData.coc,
-            businessType: companyData.businessType,
-            vatNumber: encrypt(companyData.vatNumber),
-            iban: encrypt(companyData.iban),
-            address: encrypt(companyData.address),
-            companyEmail: encrypt(companyData.companyEmail),
-            contactName: encrypt(companyData.contactName),
-            contactDesignation: encrypt(companyData.contactDesignation),
-            termsAccepted: companyData.termsAccepted,
-            privacyAccepted: companyData.privacyAccepted,
-            disclaimerAccepted: true,
-          },
-        });
-      } else {
-        const indData = data as z.infer<typeof individualSchema>;
-        await tx.individualProfile.create({
-          data: {
-            userId: user.id,
-            fullName: indData.fullName,
-            address: encrypt(indData.address),
-            iban: indData.iban ? encrypt(indData.iban) : null,
-            termsAccepted: indData.termsAccepted,
-            privacyAccepted: indData.privacyAccepted,
-            disclaimerAccepted: true,
-          },
-        });
-      }
+      const effectiveCompanyName =
+        data.companyName?.trim() || data.contactName.trim();
+
+      await tx.companyProfile.create({
+        data: {
+          userId: user.id,
+          companyName: effectiveCompanyName,
+          coc: data.coc?.trim() || null,
+          businessType: data.businessType,
+          vatNumber: data.vatNumber?.trim() ? encrypt(data.vatNumber.trim()) : null,
+          iban: data.iban?.trim() ? encrypt(data.iban.trim()) : null,
+          address: data.address?.trim() ? encrypt(data.address.trim()) : null,
+          companyEmail: data.companyEmail?.trim()
+            ? encrypt(data.companyEmail.trim())
+            : null,
+          contactName: encrypt(data.contactName.trim()),
+          contactDesignation: data.contactDesignation?.trim()
+            ? encrypt(data.contactDesignation.trim())
+            : null,
+          termsAccepted: data.termsAccepted,
+          privacyAccepted: data.privacyAccepted,
+          disclaimerAccepted: true,
+        },
+      });
 
       await tx.auditLog.create({
         data: {
@@ -187,7 +189,10 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Registration error:", err);
     return NextResponse.json(
-      { error: (err as Error)?.message || "Registration failed. Please try again." },
+      {
+        error:
+          (err as Error)?.message || "Registration failed. Please try again.",
+      },
       { status: 500 }
     );
   }
