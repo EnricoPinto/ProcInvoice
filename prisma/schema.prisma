@@ -24,6 +24,7 @@ enum InvoiceStatus {
   PROCESSING
   PROCESSED
   FAILED
+  MANUAL_ENTRY
 }
 
 model User {

@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       createdAt: inv.createdAt.toISOString(),
       uploaderName,
       vendorName: data?.vendorName || "",
-      documentType: data?.documentType || "Factuur",
+      documentType: data?.classifiedType || data?.documentType || "Factuur",
       invoiceNumber: data?.invoiceNumber || "",
       totalAmount: data?.totalAmount ?? null,
     };

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { recognizeInvoice } from "@/lib/ocr";
+import { recognizeInvoice, type ExtractedInvoiceData } from "@/lib/ocr";
 import { rateLimit, rateLimitResponse, requireAuth } from "@/lib/api-utils";
 import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/utils";
 import { decryptJson, encryptJson } from "@/lib/encryption";
@@ -211,10 +211,72 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ success: true, invoiceId: invoice.id }, { status: 201 });
 }
 
+function hasUsableExtractedData(data?: ExtractedInvoiceData | null): boolean {
+  if (!data) return false;
+  const hasInvNum = Boolean(data.invoiceNumber && data.invoiceNumber.trim().length > 0);
+  const hasVendor = Boolean(data.vendorName && data.vendorName.trim().length > 0);
+  const hasTotal = Boolean(data.totalAmount && Number(data.totalAmount) > 0);
+  const hasLines = Boolean(Array.isArray(data.lineItems) && data.lineItems.length > 0);
+  const hasVat = Boolean(data.vendorVAT && data.vendorVAT.trim().length > 0);
+  const hasClient = Boolean(data.clientName && data.clientName.trim().length > 0);
+  return hasInvNum || hasVendor || hasTotal || hasLines || hasVat || hasClient;
+}
+
+function createBlankInvoiceData(): ExtractedInvoiceData {
+  return {
+    classifiedType: "Factuur",
+    invoiceNumber: "",
+    invoiceDate: "",
+    dueDate: "",
+    vendorName: "",
+    vendorAddress: "",
+    vendorVAT: "",
+    clientName: "",
+    clientAddress: "",
+    lineItems: [],
+    subtotal: undefined,
+    taxRate: undefined,
+    taxAmount: undefined,
+    totalAmount: undefined,
+    currency: "EUR",
+    paymentTerms: "",
+    bankDetails: "",
+    notes: "",
+  };
+}
+
 async function runOCR(invoiceId: string, buffer: Buffer, mimeType: string, userId: string, ipAddress: string) {
   try {
-    const extractedData = await recognizeInvoice(buffer, mimeType);
-    const encrypted = encryptJson(extractedData);
+    const rawExtracted = await recognizeInvoice(buffer, mimeType);
+    
+    // Check if OCR produced usable extracted data
+    if (!hasUsableExtractedData(rawExtracted)) {
+      console.log(`[Upload] Invoice ${invoiceId} has no usable recognized fields. Falling back to MANUAL_ENTRY mode.`);
+      const blankData = createBlankInvoiceData();
+      const encrypted = encryptJson(blankData);
+
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: "MANUAL_ENTRY",
+          extractedData: encrypted as unknown as import("@prisma/client").Prisma.InputJsonValue,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: "OCR_MANUAL_FALLBACK",
+          resource: `invoice:${invoiceId}`,
+          details: { reason: "Low recognition confidence or no text recognized" },
+          ipAddress,
+        },
+      });
+
+      return blankData;
+    }
+
+    const encrypted = encryptJson(rawExtracted);
 
     await prisma.invoice.update({
       where: { id: invoiceId },
@@ -233,9 +295,39 @@ async function runOCR(invoiceId: string, buffer: Buffer, mimeType: string, userI
       },
     });
 
-    return extractedData;
+    return rawExtracted;
   } catch (err: any) {
-    console.error("OCR error:", err);
+    console.error("OCR recognition error:", err);
+    // If OCR engine had a recognition/parsing issue (e.g. blank scan, unreadable layout),
+    // fallback gracefully to manual entry rather than a hard failure
+    const isRecognitionFailure = !err?.isFatalSystemError;
+    if (isRecognitionFailure) {
+      console.log(`[Upload] OCR failed for ${invoiceId}. Gracefully falling back to MANUAL_ENTRY mode.`);
+      const blankData = createBlankInvoiceData();
+      const encrypted = encryptJson(blankData);
+
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: "MANUAL_ENTRY",
+          failureReason: err?.message ? String(err.message).slice(0, 500) : "Unreadable scan",
+          extractedData: encrypted as unknown as import("@prisma/client").Prisma.InputJsonValue,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: "OCR_MANUAL_FALLBACK",
+          resource: `invoice:${invoiceId}`,
+          details: { error: String(err?.message || err) },
+          ipAddress,
+        },
+      });
+
+      return blankData;
+    }
+
     const reason = err?.message || (typeof err === "string" ? err : "Failed to extract invoice data through OCR.");
     await prisma.invoice.update({
       where: { id: invoiceId },

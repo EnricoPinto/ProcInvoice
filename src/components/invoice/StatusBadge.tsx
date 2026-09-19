@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { CheckCircle2, Clock, XCircle, AlertCircle, X } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, AlertCircle, X, FileEdit } from "lucide-react";
 
 interface StatusBadgeProps {
   status: string;
@@ -16,6 +16,7 @@ export function StatusBadge({ status, failureReason }: StatusBadgeProps) {
     PROCESSING: { cls: "badge-processing", icon: <Clock size={12} />, label: "Processing" },
     PROCESSED: { cls: "badge-processed", icon: <CheckCircle2 size={12} />, label: "Processed" },
     FAILED: { cls: "badge-failed", icon: <XCircle size={12} />, label: "Failed" },
+    MANUAL_ENTRY: { cls: "badge-secondary", icon: <FileEdit size={12} style={{ color: "#818cf8" }} />, label: "Manual Entry" },
   };
 
   const s = map[status] || map.PENDING;

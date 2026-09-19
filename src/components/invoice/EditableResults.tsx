@@ -142,9 +142,18 @@ export function EditableResults({
       const items = [...(prev.lineItems || [])];
       const target = { ...items[index] };
       if (field === "description") target.description = String(val);
-      if (field === "quantity") target.quantity = Number(val) || 0;
-      if (field === "unitPrice") target.unitPrice = Number(val) || 0;
+      if (field === "quantity") {
+        target.quantity = Number(val) || 0;
+        if (target.unitPrice !== undefined) target.total = Number((target.quantity * target.unitPrice).toFixed(2));
+      }
+      if (field === "unitPrice") {
+        target.unitPrice = Number(val) || 0;
+        target.total = Number(((target.quantity || 1) * target.unitPrice).toFixed(2));
+      }
       if (field === "total") target.total = Number(val) || 0;
+      if (field === "netAmount") target.netAmount = val === "" ? undefined : Number(val);
+      if (field === "grossAmount") target.grossAmount = val === "" ? undefined : Number(val);
+      if (field === "vatRate") target.vatRate = val === "" ? undefined : Number(val);
       items[index] = target;
       return { ...prev, lineItems: items };
     });
@@ -155,7 +164,7 @@ export function EditableResults({
       ...prev,
       lineItems: [
         ...(prev.lineItems || []),
-        { description: "New Item", quantity: 1, unitPrice: 0, total: 0 },
+        { description: "New Item", quantity: 1, unitPrice: 0, total: 0, vatRate: prev.taxRate ?? 21 },
       ],
     }));
   };
@@ -396,7 +405,221 @@ export function EditableResults({
       <Section title={t.secInvoice} fields={MAIN_FIELDS} />
       <Section title={t.secVendor} fields={VENDOR_FIELDS} />
       <Section title={t.secClient} fields={CLIENT_FIELDS} />
-      <Section title={t.secAmounts} fields={AMOUNT_FIELDS} />
+
+      {/* Amounts & Multi-VAT Breakdown Section */}
+      {(() => {
+        const activeData = editing ? draft : data;
+        const currentItems = activeData.lineItems || [];
+        const curr = activeData.currency || "EUR";
+
+        // Group line items by VAT rate
+        const vatMap = new Map<number, { rate: number; baseAmount: number; taxAmount: number }>();
+        for (const it of currentItems) {
+          const rate = it.vatRate !== undefined && it.vatRate !== null ? Number(it.vatRate) : undefined;
+          if (rate !== undefined) {
+            const qty = it.quantity || 1;
+            const price = it.unitPrice || 0;
+            const base = it.netAmount !== undefined && it.netAmount !== null
+              ? Number(it.netAmount)
+              : (it.total !== undefined && it.total !== null ? Number(it.total) : qty * price);
+            const tax = base * (rate / 100);
+
+            const existing = vatMap.get(rate);
+            if (existing) {
+              existing.baseAmount += base;
+              existing.taxAmount += tax;
+            } else {
+              vatMap.set(rate, { rate, baseAmount: base, taxAmount: tax });
+            }
+          }
+        }
+
+        const vatBreakdown = Array.from(vatMap.values()).sort((a, b) => b.rate - a.rate);
+        const hasMultiVat = vatBreakdown.length > 1;
+
+        const handleAutoCalculateAmounts = () => {
+          let calculatedSubtotal = 0;
+          let calculatedTax = 0;
+          for (const it of currentItems) {
+            const qty = it.quantity || 1;
+            const price = it.unitPrice || 0;
+            const base = it.netAmount !== undefined && it.netAmount !== null
+              ? Number(it.netAmount)
+              : (it.total !== undefined && it.total !== null ? Number(it.total) : qty * price);
+            const rate = it.vatRate !== undefined && it.vatRate !== null ? Number(it.vatRate) : (draft.taxRate ?? 21);
+            calculatedSubtotal += base;
+            calculatedTax += base * (rate / 100);
+          }
+          const roundedSubtotal = Number(calculatedSubtotal.toFixed(2));
+          const roundedTax = Number(calculatedTax.toFixed(2));
+          const roundedTotal = Number((roundedSubtotal + roundedTax).toFixed(2));
+
+          setDraft((prev) => ({
+            ...prev,
+            subtotal: roundedSubtotal,
+            taxAmount: roundedTax,
+            totalAmount: roundedTotal,
+            taxRate: hasMultiVat ? undefined : (vatBreakdown[0]?.rate ?? prev.taxRate ?? 21),
+          }));
+        };
+
+        return (
+          <div className="glass-card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h3
+                style={{
+                  fontSize: "0.8125rem",
+                  fontWeight: 700,
+                  color: "var(--text-secondary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  margin: 0,
+                }}
+              >
+                {t.secAmounts}
+              </h3>
+              {editing && currentItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleAutoCalculateAmounts}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: "0.75rem", padding: "3px 8px" }}
+                  title="Auto-calculate subtotal, tax amount, and total from line items"
+                >
+                  ⚡ {isNL ? "Herbereken uit regels" : "Auto-calculate from items"}
+                </button>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              {AMOUNT_FIELDS.map((f) => {
+                if (f.key === "taxRate" && hasMultiVat && !editing) {
+                  return (
+                    <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        {isNL ? "Btw-tarief" : "Tax Rate"}
+                      </span>
+                      <span
+                        style={{
+                          color: "var(--secondary)",
+                          fontWeight: 600,
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        {isNL ? "Meervoudig (zie specificatie)" : "Multiple (see breakdown)"}
+                      </span>
+                    </div>
+                  );
+                }
+                return renderField(f);
+              })}
+            </div>
+
+            {/* Per-rate VAT Breakdown Table/Cards */}
+            {vatBreakdown.length > 0 && (
+              <div
+                style={{
+                  marginTop: "1.25rem",
+                  paddingTop: "1rem",
+                  borderTop: "1px solid var(--border)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {isNL ? "Btw-specificatie (per tarief)" : "VAT Breakdown (per rate)"}
+                  </span>
+                  {hasMultiVat && (
+                    <span
+                      className="badge"
+                      style={{
+                        background: "rgba(99, 102, 241, 0.12)",
+                        color: "#818cf8",
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {isNL ? `${vatBreakdown.length} btw-tarieven actief` : `${vatBreakdown.length} VAT rates active`}
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                    gap: "0.75rem",
+                  }}
+                >
+                  {vatBreakdown.map((vb) => (
+                    <div
+                      key={vb.rate}
+                      style={{
+                        background: "var(--bg-secondary)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "0.75rem 1rem",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: "0.875rem",
+                          fontWeight: 700,
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        <span>{vb.rate}% {isNL ? "Btw" : "VAT"}</span>
+                        <span>{curr} {vb.taxAmount.toFixed(2)}</span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--text-muted)",
+                          marginTop: 4,
+                        }}
+                      >
+                        {isNL ? "over" : "on"} {curr} {vb.baseAmount.toFixed(2)} {isNL ? "netto / belastbaar" : "taxable base"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Line Items Table (Mandatory for all invoices) */}
       <div className="glass-card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
@@ -446,7 +669,7 @@ export function EditableResults({
                   const items = (editing ? draft : data).lineItems || [];
                   const showNetCol = items.some((it) => it.netAmount != null);
                   const showGrossCol = items.some((it) => it.grossAmount != null);
-                  const showVatCol = items.some((it) => it.vatRate != null);
+                  const showVatCol = editing || items.some((it) => it.vatRate != null);
 
                   return (
                     <>
@@ -469,7 +692,7 @@ export function EditableResults({
                   const items = (editing ? draft : data).lineItems || [];
                   const showNetCol = items.some((it) => it.netAmount != null);
                   const showGrossCol = items.some((it) => it.grossAmount != null);
-                  const showVatCol = items.some((it) => it.vatRate != null);
+                  const showVatCol = editing || items.some((it) => it.vatRate != null);
 
                   return items.map((item, i) => (
                     <tr key={i}>

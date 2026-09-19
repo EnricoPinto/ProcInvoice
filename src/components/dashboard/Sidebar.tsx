@@ -14,8 +14,10 @@ import {
   ShieldCheck,
   CheckSquare,
   Users,
+  LifeBuoy,
 } from "lucide-react";
 import { BrandLogo } from "@/components/common/BrandLogo";
+import { BRANDING, getSupportMailto } from "@/lib/branding";
 
 interface SidebarProps {
   user: {
@@ -89,6 +91,21 @@ export function Sidebar({ user }: SidebarProps) {
 
       {/* User & Sign out */}
       <div className="sidebar-footer">
+        <a
+          href={getSupportMailto("ProcInvoice Support Request")}
+          className="nav-link"
+          style={{
+            marginBottom: "0.5rem",
+            color: "var(--text-secondary)",
+            fontSize: "0.8125rem",
+            padding: "0.5rem 0.75rem",
+          }}
+          title={`Contact support: ${BRANDING.supportEmail}`}
+        >
+          <LifeBuoy size={16} />
+          Contact Support
+        </a>
+
         <div
           style={{
             display: "flex",

@@ -59,11 +59,6 @@ export function generateUbl21Xml(data: ExtractedInvoiceData): string {
   const clientName = data.clientName || "Customer";
   const clientAddress = data.clientAddress || "Customer Address";
 
-  const subtotal = data.subtotal ?? (data.totalAmount ? data.totalAmount * 0.79 : 0);
-  const taxRate = data.taxRate ?? 21;
-  const taxAmount = data.taxAmount ?? (data.totalAmount ? data.totalAmount - subtotal : subtotal * 0.21);
-  const totalAmount = data.totalAmount ?? subtotal + taxAmount;
-
   // Extract IBAN from bank details or vendor fields if present
   let iban = "";
   if (data.bankDetails) {
@@ -71,16 +66,80 @@ export function generateUbl21Xml(data: ExtractedInvoiceData): string {
     if (ibanMatch) iban = ibanMatch[0];
   }
 
-  const lineItems = (data.lineItems && data.lineItems.length > 0)
+  // Line items processing
+  const rawLineItems = (data.lineItems && data.lineItems.length > 0)
     ? data.lineItems
     : [
         {
           description: "Invoice Item / Services Rendered",
           quantity: 1,
-          unitPrice: subtotal,
-          total: subtotal,
+          unitPrice: data.subtotal ?? (data.totalAmount ? data.totalAmount * 0.79 : 0),
+          total: data.subtotal ?? (data.totalAmount ? data.totalAmount * 0.79 : 0),
+          vatRate: data.taxRate ?? 21,
         },
       ];
+
+  // Group line items by VAT rate for multi-VAT cac:TaxSubtotal generation
+  interface TaxRateGroup {
+    rate: number;
+    taxableAmount: number;
+    taxAmount: number;
+    taxCategory: "S" | "Z";
+  }
+
+  const taxGroups = new Map<number, TaxRateGroup>();
+  let computedSubtotal = 0;
+  let computedTaxTotal = 0;
+
+  for (const item of rawLineItems) {
+    const itemRate = item.vatRate !== undefined && item.vatRate !== null
+      ? Number(item.vatRate)
+      : (data.taxRate !== undefined && data.taxRate !== null ? Number(data.taxRate) : 21);
+
+    const lineQty = item.quantity || 1;
+    const linePrice = item.unitPrice || 0;
+    const lineNet = item.netAmount !== undefined && item.netAmount !== null
+      ? Number(item.netAmount)
+      : (item.total !== undefined && item.total !== null ? Number(item.total) : lineQty * linePrice);
+
+    const lineTax = lineNet * (itemRate / 100);
+
+    computedSubtotal += lineNet;
+    computedTaxTotal += lineTax;
+
+    const existing = taxGroups.get(itemRate);
+    if (existing) {
+      existing.taxableAmount += lineNet;
+      existing.taxAmount += lineTax;
+    } else {
+      taxGroups.set(itemRate, {
+        rate: itemRate,
+        taxableAmount: lineNet,
+        taxAmount: lineTax,
+        taxCategory: itemRate === 0 ? "Z" : "S",
+      });
+    }
+  }
+
+  const subtotal = data.subtotal ?? (computedSubtotal > 0 ? computedSubtotal : (data.totalAmount ? data.totalAmount * 0.79 : 0));
+  const totalTaxAmount = data.taxAmount ?? (computedTaxTotal > 0 ? computedTaxTotal : (data.totalAmount ? data.totalAmount - subtotal : subtotal * 0.21));
+  const totalAmount = data.totalAmount ?? subtotal + totalTaxAmount;
+
+  // Sorted tax rate groups (e.g. 21%, 9%, 0%)
+  const taxSubtotals: TaxRateGroup[] = Array.from(taxGroups.values()).sort((a, b) => b.rate - a.rate);
+
+  // If taxGroups was empty, create fallback subtotal
+  if (taxSubtotals.length === 0) {
+    const fallbackRate = data.taxRate ?? 21;
+    taxSubtotals.push({
+      rate: fallbackRate,
+      taxableAmount: subtotal,
+      taxAmount: totalTaxAmount,
+      taxCategory: fallbackRate === 0 ? "Z" : "S",
+    });
+  }
+
+  const lineItems = rawLineItems;
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
@@ -149,20 +208,24 @@ export function generateUbl21Xml(data: ExtractedInvoiceData): string {
       : ""
   }
 
-  <!-- Tax Total -->
+  <!-- Tax Total (Multi-VAT Subtotals) -->
   <cac:TaxTotal>
-    <cbc:TaxAmount currencyID="${escapeXml(currency)}">${fmt(taxAmount)}</cbc:TaxAmount>
-    <cac:TaxSubtotal>
-      <cbc:TaxableAmount currencyID="${escapeXml(currency)}">${fmt(subtotal)}</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="${escapeXml(currency)}">${fmt(taxAmount)}</cbc:TaxAmount>
+    <cbc:TaxAmount currencyID="${escapeXml(currency)}">${fmt(totalTaxAmount)}</cbc:TaxAmount>
+    ${taxSubtotals
+      .map(
+        (st) => `<cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="${escapeXml(currency)}">${fmt(st.taxableAmount)}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="${escapeXml(currency)}">${fmt(st.taxAmount)}</cbc:TaxAmount>
       <cac:TaxCategory>
-        <cbc:ID>S</cbc:ID>
-        <cbc:Percent>${taxRate}</cbc:Percent>
+        <cbc:ID>${st.taxCategory}</cbc:ID>
+        <cbc:Percent>${st.rate}</cbc:Percent>
         <cac:TaxScheme>
           <cbc:ID>VAT</cbc:ID>
         </cac:TaxScheme>
       </cac:TaxCategory>
-    </cac:TaxSubtotal>
+    </cac:TaxSubtotal>`
+      )
+      .join("\n    ")}
   </cac:TaxTotal>
 
   <!-- Legal Monetary Total -->
@@ -175,20 +238,26 @@ export function generateUbl21Xml(data: ExtractedInvoiceData): string {
 
   <!-- Invoice Lines -->
   ${lineItems
-    .map(
-      (item, idx) => `
+    .map((item, idx) => {
+      const lineRate = item.vatRate !== undefined && item.vatRate !== null
+        ? Number(item.vatRate)
+        : (data.taxRate !== undefined && data.taxRate !== null ? Number(data.taxRate) : 21);
+      const lineCat = lineRate === 0 ? "Z" : "S";
+      const lineQty = item.quantity || 1;
+      const lineUnit = item.unitPrice || 0;
+      const lineTotal = item.netAmount ?? item.total ?? lineQty * lineUnit;
+
+      return `
   <cac:InvoiceLine>
     <cbc:ID>${idx + 1}</cbc:ID>
-    <cbc:InvoicedQuantity unitCode="C62">${item.quantity || 1}</cbc:InvoicedQuantity>
-    <cbc:LineExtensionAmount currencyID="${escapeXml(currency)}">${fmt(
-        item.total || (item.quantity || 1) * (item.unitPrice || 0)
-      )}</cbc:LineExtensionAmount>
+    <cbc:InvoicedQuantity unitCode="C62">${lineQty}</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="${escapeXml(currency)}">${fmt(lineTotal)}</cbc:LineExtensionAmount>
     <cac:Item>
       <cbc:Description>${escapeXml(item.description)}</cbc:Description>
       <cbc:Name>${escapeXml(item.description)}</cbc:Name>
       <cac:ClassifiedTaxCategory>
-        <cbc:ID>S</cbc:ID>
-        <cbc:Percent>${taxRate}</cbc:Percent>
+        <cbc:ID>${lineCat}</cbc:ID>
+        <cbc:Percent>${lineRate}</cbc:Percent>
         <cac:TaxScheme>
           <cbc:ID>VAT</cbc:ID>
         </cac:TaxScheme>
@@ -197,8 +266,8 @@ export function generateUbl21Xml(data: ExtractedInvoiceData): string {
     <cac:Price>
       <cbc:PriceAmount currencyID="${escapeXml(currency)}">${fmt(item.unitPrice)}</cbc:PriceAmount>
     </cac:Price>
-  </cac:InvoiceLine>`
-    )
+  </cac:InvoiceLine>`;
+    })
     .join("\n")}
 </Invoice>`;
 

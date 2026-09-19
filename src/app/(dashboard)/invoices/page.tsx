@@ -182,6 +182,7 @@ export default function InvoicesPage() {
             >
               <option value="ALL">All Statuses</option>
               <option value="PROCESSED">Processed</option>
+              <option value="MANUAL_ENTRY">Manual Entry</option>
               <option value="PROCESSING">Processing</option>
               <option value="PENDING">Pending</option>
               <option value="FAILED">Failed</option>

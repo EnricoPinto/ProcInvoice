@@ -30,7 +30,7 @@ export default async function DashboardPage() {
 
   const totalInvoices = await prisma.invoice.count({ where: { userId } });
   const processedCount = await prisma.invoice.count({
-    where: { userId, status: "PROCESSED" },
+    where: { userId, status: { in: ["PROCESSED", "MANUAL_ENTRY"] } },
   });
   const pendingCount = await prisma.invoice.count({
     where: { userId, status: { in: ["PENDING", "PROCESSING"] } },

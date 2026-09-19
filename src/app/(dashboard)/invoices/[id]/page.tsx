@@ -11,12 +11,15 @@ import {
   Download,
   ExternalLink,
   Eye,
+  Info,
+  FileEdit,
 } from "lucide-react";
 import { formatDate, formatFileSize } from "@/lib/utils";
 import type { ExtractedInvoiceData } from "@/lib/ocr";
 import { EditableResults } from "@/components/invoice/EditableResults";
 import { DocumentViewer } from "@/components/invoice/DocumentViewer";
 import { decryptJson } from "@/lib/encryption";
+import { getSupportMailto } from "@/lib/branding";
 
 export default async function InvoiceDetailPage({
   params,
@@ -223,14 +226,46 @@ export default async function InvoiceDetailPage({
           Your invoice is being processed. This usually takes a few seconds — please refresh shortly.
         </div>
       ) : invoice.status === "FAILED" ? (
-        <div className="alert alert-error" style={{ marginBottom: "1.5rem" }}>
-          <XCircle size={16} style={{ flexShrink: 0 }} />
-          Data recognition failed for this invoice. Please try uploading again or contact support.
+        <div className="alert alert-error" style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <XCircle size={16} style={{ flexShrink: 0 }} />
+            <span>Data recognition failed for this invoice. Please try uploading again or contact support.</span>
+          </div>
+          <a
+            href={getSupportMailto(`Invoice Processing Issue - ${invoice.fileName}`)}
+            className="btn btn-secondary btn-sm"
+            style={{ textDecoration: "none" }}
+          >
+            Contact Support
+          </a>
         </div>
       ) : null}
 
+      {/* Gentle notice for Manual Entry Fallback */}
+      {invoice.status === "MANUAL_ENTRY" && (
+        <div
+          className="alert alert-info"
+          style={{
+            marginBottom: "1.25rem",
+            background: "rgba(99, 102, 241, 0.08)",
+            border: "1px solid rgba(99, 102, 241, 0.25)",
+            color: "var(--text-primary)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <Info size={18} style={{ flexShrink: 0, color: "var(--primary)" }} />
+          <span style={{ fontSize: "0.875rem" }}>
+            {accountCountry?.toUpperCase() === "NL"
+              ? "We konden dit document niet automatisch lezen — vul de gegevens hieronder handmatig in."
+              : "We couldn't automatically read this document — please enter the details manually."}
+          </span>
+        </div>
+      )}
+
       {/* Review Screen — Desktop: Left PDF Viewer / Right Form; Mobile: Top PDF / Bottom Form */}
-      {data && invoice.status === "PROCESSED" && (
+      {data && (invoice.status === "PROCESSED" || invoice.status === "MANUAL_ENTRY") && (
         <div className="invoice-split-layout">
           {/* LEFT / TOP: Document Viewer (PDF or Image) */}
           <DocumentViewer
@@ -259,6 +294,7 @@ function StatusChip({ status }: { status: string }) {
     PROCESSING: { cls: "badge-processing", icon: <Clock size={12} />, label: "Processing" },
     PROCESSED: { cls: "badge-processed", icon: <CheckCircle2 size={12} />, label: "Processed" },
     FAILED: { cls: "badge-failed", icon: <XCircle size={12} />, label: "Failed" },
+    MANUAL_ENTRY: { cls: "badge-secondary", icon: <FileEdit size={12} style={{ color: "#818cf8" }} />, label: "Manual Entry" },
   };
   const s = map[status] || map.PENDING;
   return (

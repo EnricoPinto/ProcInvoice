@@ -13,9 +13,12 @@ import {
   Activity,
   Laptop,
   Clock,
+  LifeBuoy,
+  Mail,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { formatDate } from "@/lib/utils";
+import { BRANDING, getSupportMailto } from "@/lib/branding";
 
 interface UserSettings {
   skipMultiPageWarning: boolean;
@@ -498,6 +501,68 @@ export default function SettingsPage() {
               <span style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>{text}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Help & Support Card */}
+      <div className="glass-card" style={{ padding: "1.75rem", marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1rem" }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              background: "rgba(99, 102, 241, 0.12)",
+              borderRadius: 10,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--secondary)",
+            }}
+          >
+            <LifeBuoy size={18} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+              Help & Support
+            </h2>
+            <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: "2px 0 0 0" }}>
+              Have questions, issues with invoice recognition, or need compliance assistance?
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            padding: "1rem 1.25rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "1rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Mail size={18} style={{ color: "var(--text-muted)" }} />
+            <div>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>
+                Support Contact
+              </span>
+              <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                {BRANDING.supportEmail}
+              </div>
+            </div>
+          </div>
+
+          <a
+            href={getSupportMailto("ProcInvoice Assistance Request")}
+            className="btn btn-primary btn-sm"
+            style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <LifeBuoy size={14} /> Contact Support
+          </a>
         </div>
       </div>
 

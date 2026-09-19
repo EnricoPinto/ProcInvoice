@@ -611,19 +611,24 @@ function parseLineItemsFromLines(
       continue;
     }
 
-    // Check for VAT % in line (e.g. 21% or 9%)
+    // Check for VAT % in line (e.g. 21%, 9%, 0%, BTW 21, BTW 9%, 21 %)
     let lineVatRate: number | undefined = undefined;
-    const vatMatch = line.match(/\b(\d{1,2}(?:[.,]\d+)?)\s*%/);
+    const vatMatch =
+      line.match(/(?:btw|vat)?\s*(\b\d{1,2}(?:[.,]\d+)?)\s*%/i) ||
+      line.match(/\b(?:btw|vat)\s*(\d{1,2})\b/i);
     if (vatMatch) {
       lineVatRate = parseFloat(vatMatch[1].replace(",", "."));
     }
 
-    // Try 3-number match: Description ... Qty ... Netto ... Bruto
-    const dualAmountMatch = line.match(
+    // Strip out the matched VAT% string for numeric column matching if present
+    const cleanLine = line.replace(/(?:btw|vat)?\s*\b\d{1,2}(?:[.,]\d+)?\s*%/i, " ").replace(/\s+/g, " ").trim();
+
+    // Try 3-number match: Description ... Qty ... UnitPrice ... Netto ... Bruto (or Qty ... Netto ... Bruto)
+    const dualAmountMatch = cleanLine.match(
       /^(.+?)\s*(\d+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)?$/
     );
 
-    if (dualAmountMatch && (hasNetHeader || hasGrossHeader) && dualAmountMatch[5]) {
+    if (dualAmountMatch && (hasNetHeader || hasGrossHeader || hasVatHeader) && dualAmountMatch[5]) {
       const desc = dualAmountMatch[1].trim();
       const qty = parseInt(dualAmountMatch[2], 10);
       const unitP = parseAmount(dualAmountMatch[3]);
@@ -646,7 +651,7 @@ function parseLineItemsFromLines(
     }
 
     // Standard 2-number match: Description ... Qty ... UnitPrice ... Total
-    const match = line.match(/^(.+?)\s*(\d+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)$/);
+    const match = cleanLine.match(/^(.+?)\s*(\d+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)\s*(?:€|\$|£)?\s*([\d.]+,\d{2}|[\d,.]+)$/);
     if (match) {
       const desc = match[1].trim();
       const qty = parseInt(match[2], 10);

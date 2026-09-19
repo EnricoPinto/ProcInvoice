@@ -25,4 +25,23 @@ export const BRANDING = {
   
   // Social & Meta
   ogImage: "/og-image.png",
+
+  // Support & Contact
+  // Configured via SUPPORT_ADMIN_EMAIL / NEXT_PUBLIC_SUPPORT_EMAIL env vars
+  // Defaults to clearly marked placeholder address: support@procinvoice.example
+  supportEmail:
+    process.env.NEXT_PUBLIC_SUPPORT_EMAIL ||
+    process.env.SUPPORT_ADMIN_EMAIL ||
+    "support@procinvoice.example",
 } as const;
+
+/**
+ * Returns a configured mailto: link for ProcInvoice support.
+ */
+export function getSupportMailto(subject = "ProcInvoice Support Request", body = ""): string {
+  const params = new URLSearchParams();
+  if (subject) params.set("subject", subject);
+  if (body) params.set("body", body);
+  const query = params.toString();
+  return `mailto:${BRANDING.supportEmail}${query ? `?${query}` : ""}`;
+}
