@@ -10,6 +10,7 @@ export default auth((req) => {
     pathname === "/login" ||
     pathname === "/terms" ||
     pathname === "/privacy" ||
+    pathname === "/api/health" ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/register");
