@@ -49,3 +49,4 @@ export async function GET() {
     { status: allGood ? 200 : 500 }
   );
 }
+
