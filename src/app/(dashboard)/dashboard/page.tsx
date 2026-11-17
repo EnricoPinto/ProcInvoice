@@ -23,9 +23,8 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
-    session!.user.accountType === "COMPANY"
-      ? prisma.companyProfile.findUnique({ where: { userId } })
-      : prisma.individualProfile.findUnique({ where: { userId } }),
+    // All accounts are COMPANY since individual registration was removed
+    prisma.companyProfile.findUnique({ where: { userId } }),
   ]);
 
   const totalInvoices = await prisma.invoice.count({ where: { userId } });
@@ -36,10 +35,7 @@ export default async function DashboardPage() {
     where: { userId, status: { in: ["PENDING", "PROCESSING"] } },
   });
 
-  const displayName =
-    session!.user.accountType === "COMPANY"
-      ? (profile as { companyName?: string })?.companyName
-      : (profile as { fullName?: string })?.fullName;
+  const displayName = profile?.companyName ?? undefined;
 
   return (
     <div className="animate-fade-in">

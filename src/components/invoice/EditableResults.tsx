@@ -194,6 +194,10 @@ export function EditableResults({
             style={{ fontSize: "0.875rem", padding: "8px 12px" }}
             value={current !== undefined && current !== null ? String(current) : ""}
             onChange={(e) => updateDraftField(f.key, e.target.value)}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
         </div>
       );
@@ -703,6 +707,10 @@ export function EditableResults({
                             style={{ padding: "4px 6px", fontSize: "0.8125rem", width: "100%", boxSizing: "border-box" } as React.CSSProperties}
                             value={item.description || ""}
                             onChange={(e) => updateLineItem(i, "description", e.target.value)}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                           />
                         ) : (
                           <span style={{ color: "var(--text-primary)", fontWeight: 500, wordBreak: "break-word" }}>
@@ -715,6 +723,7 @@ export function EditableResults({
                           <input
                             className="form-input"
                             type="number"
+                            inputMode="decimal"
                             style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 50, textAlign: "center" }}
                             value={item.quantity ?? ""}
                             onChange={(e) => updateLineItem(i, "quantity", e.target.value)}
@@ -728,6 +737,7 @@ export function EditableResults({
                           <input
                             className="form-input"
                             type="number"
+                            inputMode="decimal"
                             step="0.01"
                             style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 80, textAlign: "right" }}
                             value={item.unitPrice ?? ""}
@@ -747,6 +757,7 @@ export function EditableResults({
                             <input
                               className="form-input"
                               type="number"
+                              inputMode="decimal"
                               step="0.01"
                               style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 80, textAlign: "right" }}
                               value={item.netAmount ?? ""}
@@ -767,6 +778,7 @@ export function EditableResults({
                             <input
                               className="form-input"
                               type="number"
+                              inputMode="decimal"
                               step="0.1"
                               style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 50, textAlign: "center" }}
                               value={item.vatRate ?? ""}
@@ -783,6 +795,7 @@ export function EditableResults({
                             <input
                               className="form-input"
                               type="number"
+                              inputMode="decimal"
                               step="0.01"
                               style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 80, textAlign: "right" }}
                               value={item.grossAmount ?? ""}
@@ -802,6 +815,7 @@ export function EditableResults({
                           <input
                             className="form-input"
                             type="number"
+                            inputMode="decimal"
                             step="0.01"
                             style={{ padding: "4px 4px", fontSize: "0.8125rem", width: "100%", maxWidth: 85, textAlign: "right" }}
                             value={item.total ?? ""}
@@ -879,6 +893,10 @@ export function EditableResults({
                   value={draft.bankDetails || ""}
                   onChange={(e) => updateDraftField("bankDetails", e.target.value)}
                   placeholder="IBAN / BIC / Bank Account"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
               ) : (
                 <p style={{ color: "var(--text-primary)", marginTop: 4, fontSize: "0.9375rem" }}>

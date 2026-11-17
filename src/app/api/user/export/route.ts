@@ -10,13 +10,13 @@ export async function GET(req: NextRequest) {
 
   const userId = authed.userId;
 
-  const [user, company, individual, invoices, settings, auditLogs] = await Promise.all([
+  const [user, company, invoices, settings, auditLogs] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, accountType: true, role: true, country: true, createdAt: true },
     }),
     prisma.companyProfile.findUnique({ where: { userId } }),
-    prisma.individualProfile.findUnique({ where: { userId } }),
+    // individualProfile removed — all accounts are COMPANY
     prisma.invoice.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
     prisma.userSettings.findUnique({ where: { userId } }),
     prisma.auditLog.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
@@ -38,15 +38,7 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  let decryptedIndividual = null;
-  if (individual) {
-    decryptedIndividual = {
-      ...individual,
-      address: decrypt(individual.address),
-      iban: decrypt(individual.iban),
-    };
-  }
-
+  // Individual profile removed — all accounts are now COMPANY type
   const decryptedInvoices = invoices.map((inv) => ({
     ...inv,
     extractedData: decryptJson(inv.extractedData) || inv.extractedData,
@@ -68,7 +60,7 @@ export async function GET(req: NextRequest) {
     exportDate: new Date().toISOString(),
     complianceNotice: "GDPR Article 20 - Right to Data Portability Export",
     user,
-    profile: decryptedCompany || decryptedIndividual,
+    profile: decryptedCompany,
     settings,
     invoices: decryptedInvoices,
     auditLogs,
